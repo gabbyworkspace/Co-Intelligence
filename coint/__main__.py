@@ -57,6 +57,12 @@ def doctor(settings) -> int:
             problems.append(f"BLOCKER: {who} session founder-decision channel not configured "
                             f"({who}_OAUTH_CLIENT_ID / {who}_OAUTH_CLIENT_SECRET). G's decisions for {scope} "
                             "cannot be validated, so the automation pauses at that gate.")
+    if settings.public_base_url and settings.public_base_url.startswith("https://"):
+        ok.append(f"JARVIS chat connector URL: {settings.public_base_url.rstrip('/')}/mcp/jarvis "
+                  f"(GitHub OAuth callback {settings.public_base_url.rstrip('/')}/oauth/callback)")
+    else:
+        problems.append("BLOCKER: PUBLIC_BASE_URL (https) not set; the JARVIS chat connector and its GitHub "
+                        "sign-in cannot work, so final approvals cannot be submitted.")
     for role, cfg in settings.adapters.items():
         p = build_adapter(cfg).problems()
         if p:

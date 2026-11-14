@@ -35,6 +35,7 @@ class Stage(str, Enum):
     KITT_DELIVERY_REVIEW = "KITT_DELIVERY_REVIEW"      # step 10: KITT reviews delivery
     JARVIS_FINALIZE_DELIVERY = "JARVIS_FINALIZE_DELIVERY"  # step 10: JARVIS addresses KITT findings
     FOUNDER_FINAL_REVIEW = "FOUNDER_FINAL_REVIEW"      # step 11: G <-> JARVIS session
+    FOUNDER_DECISION_REFERENCE = "FOUNDER_DECISION_REFERENCE"  # JARVIS publishes decisions/<ID>/v<N>.json
     FOUNDER_DECISION_RECORDING = "FOUNDER_DECISION_RECORDING"  # KITT records G's decision on GitHub
     FOUNDER_DECISION = "FOUNDER_DECISION"              # loop limit / blockers escalation
     CLOSED = "CLOSED"                                  # 14
@@ -60,6 +61,7 @@ STAGE_TASK = {
     Stage.KITT_DELIVERY_REVIEW: ("KITT", "delivery_review"),
     Stage.JARVIS_FINALIZE_DELIVERY: ("JARVIS", "finalize_delivery"),
     Stage.FOUNDER_FINAL_REVIEW: ("FOUNDER", "founder_final_review"),
+    Stage.FOUNDER_DECISION_REFERENCE: ("JARVIS", "publish_decision_reference"),
     Stage.FOUNDER_DECISION_RECORDING: ("KITT", "record_founder_decision"),
     Stage.FOUNDER_DECISION: ("FOUNDER", "founder_decision"),
 }
@@ -103,7 +105,7 @@ HANDOFF_ALLOWED = {
     ("KITT", "record_founder_decision"): {"JARVIS"},
 }
 
-# Expected outputs per task type (paths relative to projects/<PROJECT_ID>/).
+# Expected outputs per task type (logical paths; see coint/layout.py for repo locations).
 EXPECTED_OUTPUTS = {
     "create_document": ["brief/brief.json", "documents/project-document.md"],
     "apply_decisions": ["documents/project-document.md", "approvals/initial-decisions.md"],

@@ -150,8 +150,8 @@ def test_handoff_by_wrong_identity_rejected(make_h):
     h = make_h(manual=("KITT",))
     h.start()
     t = h.tasks(task_type="create_document")[0]
-    sha = h.gh.commit_files("co-intel/CI-TEST", {"projects/CI-TEST/brief/brief.json": "{}",
-                                                 "projects/CI-TEST/documents/project-document.md": "#"}, "m")
+    sha = h.gh.commit_files("co-intel/CI-TEST", {"CI-TEST/brief/brief.json": "{}",
+                                                 "CI-TEST/documents/project-document.md": "#"}, "m")
     m = {"project_id": "CI-TEST", "task_id": t["id"], "revision": 1, "source_role": "KITT",
          "files": ["brief/brief.json", "documents/project-document.md"], "expected_outputs": [], "next_action": "x"}
     body = f"/handoff FOUNDER create_document 1 {sha}\n```json\n{json.dumps(m)}\n```"
@@ -262,10 +262,10 @@ def test_artifacts_carry_cycle_revision_metadata(h):
     h.start()
     h.run_all()
     sha = h.project()["current_document_sha"]
-    doc = h.gh.get_file("projects/CI-TEST/documents/project-document.md", sha)
+    doc = h.gh.get_file("CI-TEST/documents/project-document.md", sha)
     meta = json.loads(doc.split("coint-meta: ", 1)[1].split(" -->", 1)[0])
     assert meta["cycle"] == 1 and meta["revision"] == 1 and meta["role"] == "KITT"
-    brief = json.loads(h.gh.get_file("projects/CI-TEST/brief/brief.json", sha))
+    brief = json.loads(h.gh.get_file("CI-TEST/brief/brief.json", sha))
     assert brief["_coint"]["input_sha"] == meta["input_sha"]
     assert h.db.one("SELECT COUNT(*) n FROM handoffs")["n"] == 1
 

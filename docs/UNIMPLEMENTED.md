@@ -10,7 +10,7 @@ or any model provider.
 |---|---|---|
 | `FOUNDER_GITHUB_USERNAME` | not set | G's actual GitHub login. Service refuses to start without it. |
 | **KITT session OAuth App + GPT Action** | **not created — BLOCKER for brief and initial review** | GitHub OAuth App, KITT GPT Action importing `/kitt/openapi.json`, G signs in once (OPERATING.md §5). |
-| **JARVIS session integration** | **not built — BLOCKER for final approval** | Service side is done (`/jarvis/pending`, `/jarvis/founder-decision`, verification against a JARVIS OAuth App). Missing: the connector that lets the JARVIS chat call them with G's GitHub token. A Claude chat reaches external services through an MCP connector with OAuth, which is not implemented here. Until it exists, the final approval gate pauses and reports the blocker. |
+| **JARVIS chat connector** | **built, not connected — BLOCKER for final approval** | MCP connector at `/mcp/jarvis` with GitHub sign-in is implemented and tested against simulated GitHub. Still needed: JARVIS GitHub OAuth App, public HTTPS `PUBLIC_BASE_URL`, adding the connector to the JARVIS chat, G signing in once. Not yet tried against the real Claude connector flow. |
 | GitHub App | not created/installed | App ID, installation ID, private key, webhook secret, repo ID (see OPERATING.md §1) |
 | JARVIS Gmail OAuth | not authorized here | OAuth client + refresh token for jarvis.resystem@gmail.com (scopes `gmail.send`, `gmail.readonly`) |
 | KITT adapter | **unsupported** (default) | Choose `anthropic`, `openai_compat`, `http`, or `manual` |

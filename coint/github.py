@@ -29,6 +29,7 @@ class GitHubClient:
     def create_comment(self, issue: int, body: str) -> dict: ...
     def close_issue(self, issue: int) -> None: ...
     def create_issue(self, title: str, body: str) -> int: ...
+    def create_tag(self, name: str, sha: str) -> None: ...
     def add_labels(self, issue: int, labels: list[str]) -> None: ...
     def list_issue_comments(self, issue: int, since: str | None = None) -> list[dict]: ...
     def list_repo_comments(self, since: str) -> list[dict]: ...
@@ -159,6 +160,15 @@ class GitHubAppClient(GitHubClient):
     def create_comment(self, issue: int, body: str) -> dict:
         d = self._api("POST", f"{self.repo_path}/issues/{issue}/comments", {"body": body})
         return {"id": d["id"], "html_url": d["html_url"]}
+
+    def create_tag(self, name: str, sha: str) -> None:
+        """Lightweight tag; idempotent when it already points at `sha`, refused otherwise."""
+        try:
+            self._api("POST", f"{self.repo_path}/git/refs", {"ref": f"refs/tags/{name}", "sha": sha})
+        except InvalidInput:
+            ref = self._api("GET", f"{self.repo_path}/git/ref/tags/{urllib.parse.quote(name)}", ok404=True)
+            if not ref or ref["object"]["sha"] != sha:
+                raise PermissionDenied(f"tag {name} already exists at a different commit; tags are never moved")
 
     def create_issue(self, title: str, body: str) -> int:
         return self._api("POST", f"{self.repo_path}/issues", {"title": title, "body": body})["number"]

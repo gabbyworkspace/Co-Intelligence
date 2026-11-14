@@ -60,15 +60,38 @@ class Worker:
                 log.exception("worker tick failed")
 
 
-def make_handler(engine, worker: Worker):
+def make_handler(engine, worker: Worker, connector=None):
+    if connector is None and engine.s.public_base_url:
+        from .jarvis_connector import JarvisConnector
+        connector = JarvisConnector(engine, engine.s.public_base_url)
+
     class H(BaseHTTPRequestHandler):
-        def _send(self, code: int, obj: dict):
-            data = json.dumps(obj).encode()
+        def _send(self, code: int, obj, headers: dict | None = None):
+            data = json.dumps(obj).encode() if obj is not None else b""
             self.send_response(code)
-            self.send_header("Content-Type", "application/json")
+            if obj is not None:
+                self.send_header("Content-Type", "application/json")
+            for k, v in (headers or {}).items():
+                self.send_header(k, v)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+
+        def _connector(self, fn):
+            if connector is None:
+                return self._send(503, {"error": "JARVIS connector unavailable: PUBLIC_BASE_URL not configured"})
+            r = fn()
+            return self._send(r.status, r.body, r.headers)
+
+        def _query(self) -> dict:
+            from urllib.parse import parse_qsl, urlsplit
+            return dict(parse_qsl(urlsplit(self.path).query))
+
+        def _body(self, limit=256 * 1024) -> bytes:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > limit:
+                raise ValueError("too large")
+            return self.rfile.read(length)
 
         def _bearer(self) -> str:
             h = self.headers.get("Authorization") or ""
@@ -95,6 +118,17 @@ def make_handler(engine, worker: Worker):
                 return None, (503, {"error": f"temporarily unable to verify session: {e}"})
 
         def do_GET(self):
+            route = self.path.split("?", 1)[0]
+            if route in ("/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp/jarvis"):
+                return self._connector(lambda: connector.protected_resource())
+            if route == "/.well-known/oauth-authorization-server":
+                return self._connector(lambda: connector.authorization_server())
+            if route == "/oauth/authorize":
+                return self._connector(lambda: connector.authorize(self._query()))
+            if route == "/oauth/callback":
+                return self._connector(lambda: connector.callback(self._query()))
+            if route == "/mcp/jarvis":
+                return self._send(405, {"error": "use POST (Streamable HTTP, JSON responses)"}, {"Allow": "POST"})
             if self.path == "/healthz":
                 engine.db.one("SELECT 1")
                 return self._send(200, {"ok": True})
@@ -110,6 +144,26 @@ def make_handler(engine, worker: Worker):
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
+            route = self.path.split("?", 1)[0]
+            if route in ("/oauth/register", "/oauth/token", "/mcp/jarvis"):
+                try:
+                    raw = self._body()
+                except ValueError:
+                    return self._send(413, {"error": "too large"})
+                if route == "/oauth/token":
+                    from urllib.parse import parse_qsl
+                    form = dict(parse_qsl(raw.decode()))
+                    return self._connector(lambda: connector.token(form))
+                try:
+                    body = json.loads(raw or b"{}")
+                except ValueError:
+                    return self._send(400, {"jsonrpc": "2.0", "id": None,
+                                            "error": {"code": -32700, "message": "parse error"}})
+                if route == "/oauth/register":
+                    return self._connector(lambda: connector.register(body if isinstance(body, dict) else {}))
+                res = self._connector(lambda: connector.mcp(self._bearer(), body))
+                worker.wake.set()
+                return res
             if self.path in ("/kitt/founder-decision", "/jarvis/founder-decision"):
                 att, err = self._verify_session()
                 if err:

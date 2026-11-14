@@ -101,6 +101,22 @@ def validate_brief(p) -> dict:
     return dict(p)
 
 
+def validate_brief_ref(req: dict) -> dict:
+    """Adopt a brief KITT already published on GitHub at an exact commit."""
+    ref = req.get("brief_ref")
+    if not isinstance(ref, dict) or not isinstance(ref.get("path"), str) or ".." in ref.get("path", ""):
+        raise ParseError("brief_ref must be {\"path\": \"<repo path>\", \"sha\": \"<40-char sha>\"}.")
+    _sha(str(ref.get("sha", "")))
+    if req.get("confirmed") is not True:
+        raise ParseError("`confirmed: true` is required: G must explicitly confirm the published brief.")
+    if not req.get("title") or not req.get("project_id"):
+        raise ParseError("title and project_id are required when adopting a published brief.")
+    if not PROJECT_ID_RE.match(str(req["project_id"])):
+        raise ParseError("project_id must match ^[A-Z][A-Z0-9-]{2,31}$.")
+    return {"title": req["title"], "project_id": req["project_id"], "confirmed": True,
+            "brief_ref": {"path": ref["path"], "sha": ref["sha"]}}
+
+
 def validate_changes(p: dict, need_route: bool) -> None:
     _nonempty_list(p, "changes")
     if need_route and p.get("route") not in ("documents", "development"):

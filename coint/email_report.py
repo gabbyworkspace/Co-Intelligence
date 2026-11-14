@@ -26,6 +26,39 @@ class NotReady(Exception):
     """Preconditions not yet met (e.g. issue close still pending); try later."""
 
 
+def _record_result(engine, row_id):
+    """Append the send result to ledger/emails.jsonl (and CLOSURE.json for the final report)."""
+    from . import layout as L
+    row = engine.db.one("SELECT * FROM email_outbox WHERE id=?", row_id)
+    project = engine.project(row["project_id"])
+    entry = {"key": f"{row['email_key']}#{row['attempts']}:{row['state']}", "kind": row["kind"],
+             "project_id": row["project_id"], "version": row["cycle"], "to": row["to_addr"],
+             "from": FINAL_REPORT_FROM, "subject": row["subject"], "state": row["state"],
+             "gmail_message_id": row["gmail_message_id"], "accepted_at": row["accepted_at"],
+             "error": row["last_error"] if row["state"] != "SENT" else None,
+             "message_id_header": row["rfc822_message_id"], "recorded_at": iso()}
+    with engine.db.tx() as c:
+        engine._outbox(c, row["project_id"], "ledger", {"branch": project["branch"], "entry": entry},
+                       f"ledger:{entry['key']}")
+        if row["kind"] == "final_report" and row["state"] == "SENT":
+            raw = None
+            try:
+                head = engine.gh.branch_head(project["branch"])
+                raw = engine.gh.get_file(L.closure_path(project["id"]), head) if head else None
+            except Exception:  # noqa: BLE001
+                raw = None
+            doc = json.loads(raw) if raw else {"project_id": project["id"], "version": row["cycle"]}
+            doc["final_report_email"] = {"state": "SENT", "to": row["to_addr"],
+                                         "gmail_message_id": row["gmail_message_id"],
+                                         "accepted_at": row["accepted_at"],
+                                         "note": "Gmail API acceptance; inbox delivery not confirmed"}
+            engine._outbox(c, row["project_id"], "commit", {
+                "branch": project["branch"], "message": f"[coint] {project['id']} v{row['cycle']} final email result",
+                "files": {L.closure_path(project["id"]): json.dumps(doc, indent=2) + "\n"}},
+                f"closureemail:{row['email_key']}")
+    engine.dispatch_outbox()
+
+
 def _set(db, row_id, **kw):
     kw["updated_at"] = iso()
     cols = ", ".join(f"{k}=?" for k in kw)
@@ -65,17 +98,18 @@ def check_preconditions(engine, row) -> dict:
                row["project_id"], row["cycle"], closure["delivery_sha"])
     if not d or not d["development_complete"]:
         raise PermanentError("development not complete")                                  # 1
-    root = f"projects/{project['id']}/"
-    ver_raw = gh.get_file(root + "verification/verification-report.json", closure["delivery_sha"])
+    from . import layout as L
+    rp = lambda rel: L.repo_path(project["id"], row["cycle"], rel)  # noqa: E731
+    ver_raw = gh.get_file(rp("verification/verification-report.json"), closure["delivery_sha"])
     if not ver_raw or d["verification_status"] != "passed":
         raise PermanentError("required verification evidence missing or not passed")       # 2
-    report = gh.get_file(root + d["final_report_path"], closure["delivery_sha"])
+    report = gh.get_file(rp(d["final_report_path"]), closure["delivery_sha"])
     if not report:
         raise PermanentError("final report artifact missing")                             # 5
     if db.one("SELECT 1 FROM email_outbox WHERE project_id=? AND cycle=? AND state='SENT' AND kind='final_report'",
               row["project_id"], row["cycle"]):
         raise PermanentError("a confirmed final email already exists for this closure")   # 6
-    disp = json.loads(gh.get_file(root + "reviews/jarvis/finding-dispositions.json", closure["delivery_sha"]) or "{}")
+    disp = json.loads(gh.get_file(rp("reviews/jarvis/finding-dispositions.json"), closure["delivery_sha"]) or "{}")
     return {"project": project, "closure": closure, "approval": approval, "delivery": d,
             "verification": json.loads(ver_raw), "report": report, "dispositions": disp.get("dispositions", []),
             "kitt_record_sha": rec[0]["published_sha"]}
@@ -95,8 +129,9 @@ def check_review_preconditions(engine, row) -> dict:
                row["project_id"], row["cycle"], row["delivery_sha"])
     if not d:
         raise PermanentError("no delivery record for this version")
-    root, sha = f"projects/{project['id']}/", row["delivery_sha"]
-    files = {k: gh.get_file(root + k, sha) for k in (
+    from . import layout as L
+    sha = row["delivery_sha"]
+    files = {k: gh.get_file(L.repo_path(project["id"], row["cycle"], k), sha) for k in (
         "delivery/final-report.md", "verification/verification-report.json", "reviews/kitt/delivery-review.md")}
     if not files["delivery/final-report.md"] or not files["verification/verification-report.json"]:
         raise PermanentError("review package artifacts missing at the delivery SHA")
@@ -106,7 +141,7 @@ def check_review_preconditions(engine, row) -> dict:
 
 def compose_review(ctx: dict, row) -> EmailMessage:
     p, ver, sha = ctx["project"], ctx["verification"], row["delivery_sha"]
-    blob = f"{GITHUB_URL}/blob/{sha}/projects/{p['id']}"
+    blob = f"{GITHUB_URL}/blob/{sha}/deliveries/{p['id']}/v{row['cycle']}"
     checks = "\n".join(f"  - {c.get('name')}: {c.get('result')} — {c.get('evidence', '')}" for c in ver.get("checks", []))
     lims = "\n".join(f"  - {x}" for x in ver.get("limitations", [])) or "  - none recorded"
     body = f"""REVIEW REQUIRED — this is NOT a closure notice.
@@ -116,10 +151,12 @@ Cycle / version:  Version {row['cycle']}
 Exact delivery:   {sha}
                   {GITHUB_URL}/commit/{sha}
 
-Delivery:         {blob}/delivery/delivery.md
-Final report:     {blob}/delivery/final-report.md
-Verification:     {blob}/verification/verification-report.json
-KITT review:      {blob}/reviews/kitt/delivery-review.md
+Delivery tag:     {p['id']}-v{row['cycle']}
+Delivery:         {blob}/DELIVERY.md
+Final report:     {blob}/FINAL-REPORT.md
+Verification:     {blob}/VERIFICATION.md
+KITT review:      {blob}/KITT_REVIEW.md
+Findings:         {blob}/FINDINGS.md
 
 VERIFICATION RESULTS ({ver.get('status')})
 {checks}
@@ -147,8 +184,8 @@ COMPLETION SUMMARY (final report draft)
 
 def compose(ctx: dict, rfc822_message_id: str) -> EmailMessage:
     p, cl, ap, ver = ctx["project"], ctx["closure"], ctx["approval"], ctx["verification"]
-    sha, root = cl["delivery_sha"], f"projects/{p['id']}"
-    blob = f"{GITHUB_URL}/blob/{sha}/{root}"
+    sha, cyc = cl["delivery_sha"], cl["cycle"]
+    blob = f"{GITHUB_URL}/blob/{sha}/deliveries/{p['id']}/v{cyc}"
     checks = "\n".join(f"  - {c.get('name')}: {c.get('result')} — {c.get('evidence', '')}" for c in ver.get("checks", []))
     lims = "\n".join(f"  - {x}" for x in ver.get("limitations", [])) or "  - none recorded"
     disp = "\n".join(f"  - {x.get('finding_id')}: {x.get('disposition')}" + (f" — {x['reason']}" if x.get("reason") else "")
@@ -160,11 +197,14 @@ EXACT APPROVED VERSION
   {GITHUB_URL}/commit/{sha}
 
 FINAL DOCUMENTS AND DELIVERABLES
-  Delivery:                {blob}/delivery/delivery.md
-  Final report:            {blob}/delivery/final-report.md
-  Implementation document: {blob}/documents/implementation-document.md
-  Development outputs:     {GITHUB_URL}/tree/{sha}/{root}/development
-  Verification report:     {blob}/verification/verification-report.json
+  Delivery tag:            {p['id']}-v{cyc}
+  Delivery:                {blob}/DELIVERY.md
+  Final report:            {blob}/FINAL-REPORT.md
+  Implementation document: {blob}/IMPLEMENTATION.md
+  Development outputs:     {GITHUB_URL}/tree/{sha}/deliveries/{p['id']}/v{cyc}/development
+  Verification:            {blob}/VERIFICATION.md
+  Decision reference:      {GITHUB_URL}/blob/{ctx['kitt_record_sha']}/decisions/{p['id']}/v{cyc}.json
+  Closure record:          {GITHUB_URL}/blob/{p['branch']}/closure/{p['id']}/CLOSURE.json
 
 VERIFICATION RESULTS ({ver.get('status')})
 {checks}
@@ -237,6 +277,7 @@ def send_email(engine, row) -> str:
         record_audit_event(db, actor="JARVIS", action=f"email.{row['kind']}", outcome="BLOCKED",
                            project_id=row["project_id"], cycle=row["cycle"], detail={"reason": str(e)})
         _notify_failure(engine, row, f"not sent — {e}")
+        _record_result(engine, row["id"])
         return "blocked"
     except DefinitePreSendFailure as e:
         _set(db, row["id"], next_attempt_at=iso(utcnow() + timedelta(minutes=5)), last_error=str(e))
@@ -257,6 +298,7 @@ def send_email(engine, row) -> str:
         record_audit_event(db, actor="JARVIS", action=f"email.{row['kind']}", outcome="SEND_UNCERTAIN",
                            project_id=row["project_id"], cycle=row["cycle"])
         _notify_failure(engine, row, "outcome uncertain — reconciling with the mailbox before any resend")
+        _record_result(engine, row["id"])
         return "uncertain"
     except PermanentError as e:
         _set(db, row["id"], state="BLOCKED", last_error=str(e))
@@ -266,6 +308,7 @@ def send_email(engine, row) -> str:
     record_audit_event(db, actor="JARVIS", action=f"email.{row['kind']}", outcome="SENT(api-accepted)",
                        project_id=row["project_id"], cycle=row["cycle"],
                        detail={"gmail_message_id": res.get("id"), "to": row["to_addr"]})
+    _record_result(engine, row["id"])
     return "sent"
 
 
@@ -285,6 +328,7 @@ def reconcile_uncertain(engine, row) -> str:
              last_error="reconciled after uncertain outcome")
         record_audit_event(db, actor="JARVIS", action="email.reconcile", outcome="SENT(found)",
                            project_id=row["project_id"], cycle=row["cycle"])
+        _record_result(engine, row["id"])
         return "reconciled_sent"
     started = parse_iso(row["attempt_started_at"]) if row["attempt_started_at"] else utcnow()
     if utcnow() - started < timedelta(minutes=engine.s.email_reconcile_wait_minutes):

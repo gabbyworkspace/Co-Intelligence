@@ -43,7 +43,7 @@ def test_confirmed_brief_submitted_from_kitt_session_to_github(h):
     assert h.decide("project_start", brief=dict(BRIEF), statement="Confirmed, start it.") == "accepted"
     p = h.project()
     assert p["issue_number"] == 101 and h.gh.issues[0][0] == "[Project] Widget"   # tracking issue created
-    brief = json.loads(h.gh.get_file("projects/CI-TEST/brief/confirmed-brief.json", p["head_sha"]))
+    brief = json.loads(h.gh.get_file("CI-TEST/brief/confirmed-brief.json", p["head_sha"]))
     assert brief["confirmed"] is True and brief["_coint"]["channel"] == "kitt_session"
     ap = h.db.one("SELECT * FROM approvals WHERE kind='brief'")
     assert ap["channel"] == "kitt_session" and ap["attestation_id"].startswith("dec-")
@@ -56,8 +56,8 @@ def test_initial_gate_blocks_premature_handoff(make_h):
     h.start()
     t = h.tasks(task_type="create_document")[0]
     # KITT (manual) publishes and hands off to FOUNDER
-    sha = h.gh.commit_files("co-intel/CI-TEST", {"projects/CI-TEST/brief/brief.json": "{}",
-                                                 "projects/CI-TEST/documents/project-document.md": "# d"}, "kitt")
+    sha = h.gh.commit_files("co-intel/CI-TEST", {"CI-TEST/brief/brief.json": "{}",
+                                                 "CI-TEST/documents/project-document.md": "# d"}, "kitt")
     manifest = {"project_id": "CI-TEST", "task_id": t["id"], "revision": 1, "source_role": "KITT",
                 "files": ["brief/brief.json", "documents/project-document.md"], "expected_outputs": [],
                 "next_action": "G reviews"}
@@ -101,7 +101,7 @@ def test_four_reviewers_receive_same_package(h):
         assert len(calls) == 1 and calls[0][1] == p["current_package_sha"]
     # each review published separately and records the package SHA
     for t in reviews:
-        body = h.gh.get_file(f"projects/CI-TEST/council/reviews/{t['role']}.md", t["published_sha"])
+        body = h.gh.get_file(f"council/CI-TEST/reviews/{t['role']}.md", t["published_sha"])
         assert p["current_package_sha"] in body
 
 
@@ -181,8 +181,8 @@ def test_scheduled_recovery_catches_missed_handoff(make_h):
     h = make_h(manual=("KITT",))
     h.start()
     t = h.tasks(task_type="create_document")[0]
-    sha = h.gh.commit_files("co-intel/CI-TEST", {"projects/CI-TEST/brief/brief.json": "{}",
-                                                 "projects/CI-TEST/documents/project-document.md": "# d"}, "kitt")
+    sha = h.gh.commit_files("co-intel/CI-TEST", {"CI-TEST/brief/brief.json": "{}",
+                                                 "CI-TEST/documents/project-document.md": "# d"}, "kitt")
     manifest = {"project_id": "CI-TEST", "task_id": t["id"], "revision": 1, "source_role": "KITT",
                 "files": ["brief/brief.json", "documents/project-document.md"], "expected_outputs": [],
                 "next_action": "G reviews"}
@@ -235,6 +235,13 @@ def test_requested_changes_create_new_cycle_without_email(h):
     assert h.decide("delivery_changes", cycle=1, sha=p["current_delivery_sha"], changes=["rename button"],
                     route="documents") == "accepted"
     # validated in the JARVIS session, but no effect until KITT records it on GitHub
+    assert h.project()["stage"] == "FOUNDER_DECISION_REFERENCE" and h.project()["current_cycle"] == 1
+    ref = h.tasks(task_type="publish_decision_reference")[0]
+    assert ref["role"] == "JARVIS" and h.engine.run_task(ref["id"]) == "completed"
+    reference = json.loads(h.gh.get_file("decisions/CI-TEST/v1.json",
+                                         h.tasks(task_type="publish_decision_reference")[0]["published_sha"]))
+    assert reference["decision"] == "REQUEST_CHANGES" and reference["delivery_sha"] == p["current_delivery_sha"]
+    assert reference["delivery_tag"] == "CI-TEST-v1" and reference["requested_changes"] == ["rename button"]
     assert h.project()["stage"] == "FOUNDER_DECISION_RECORDING" and h.project()["current_cycle"] == 1
     rec = h.tasks(task_type="record_founder_decision")[0]
     assert rec["role"] == "KITT"
@@ -436,7 +443,7 @@ def test_kitt_record_required_before_closure_and_must_cite_decision(make_h):
     h.to_final_review()
     h.adapters["KITT"].script = lazy_record
     assert h.decide("delivery_approve_close", cycle=1, sha=h.project()["current_delivery_sha"]) == "accepted"
-    assert h.project()["status"] == "ACTIVE" and h.project()["stage"] == "FOUNDER_DECISION_RECORDING"
+    assert h.project()["status"] == "ACTIVE" and h.project()["stage"] == "FOUNDER_DECISION_REFERENCE"
     h.run_all()
     rec = h.tasks(task_type="record_founder_decision")[0]
     assert rec["state"] == "BLOCKED"            # an agent statement without the validated reference is refused
@@ -458,3 +465,51 @@ def test_approval_gate_pauses_when_jarvis_session_unavailable(make_h):
     assert approve_close(h) == "rejected"
     assert h.project()["stage"] == "FOUNDER_FINAL_REVIEW" and h.project()["status"] == "ACTIVE"
     assert h.tasks(task_type="record_founder_decision") == [] and h.final_count() == 0
+
+
+
+# ---------------------------------------------------------------- WORKFLOW.md v2.0 layout
+def test_workflow_v2_layout_tags_closure_and_ledger(h):
+    h.to_final_review()
+    p = h.project()
+    sha, gh = p["current_delivery_sha"], h.gh
+    for name in ("DELIVERY.md", "FINAL-REPORT.md", "VERIFICATION.json", "VERIFICATION.md", "KITT_REVIEW.md",
+                 "FINDINGS.json", "FINDINGS.md", "IMPLEMENTATION.md", "development/app.py"):
+        assert gh.get_file(f"deliveries/CI-TEST/v1/{name}", sha) is not None, name
+    assert gh.get_file("council/CI-TEST/MANIFEST.json", sha) is not None
+    assert gh.get_file("council/CI-TEST/reviews/COUNCIL_1.md", sha) is not None
+    assert gh.get_file("CI-TEST/documents/project-document.md", sha) is not None
+    assert gh.tags["CI-TEST-v1"] == sha
+    assert "review_package" in gh.get_file("ledger/emails.jsonl", gh.branch_head("co-intel/CI-TEST"))
+    assert approve_close(h) == "accepted"
+    head = gh.branch_head("co-intel/CI-TEST")
+    assert gh.get_file("decisions/CI-TEST/v1.json", head) and gh.get_file("decisions/CI-TEST/v1.KITT_RECORD.md", head)
+    closure = json.loads(gh.get_file("closure/CI-TEST/CLOSURE.json", head))
+    assert closure["delivery_sha"] == sha and closure["delivery_tag"] == "CI-TEST-v1"
+    assert "CI-TEST-v1-closed" in gh.tags
+    process_email_outbox(h.engine)
+    head = gh.branch_head("co-intel/CI-TEST")
+    closure = json.loads(gh.get_file("closure/CI-TEST/CLOSURE.json", head))
+    assert closure["final_report_email"]["state"] == "SENT" and closure["final_report_email"]["gmail_message_id"]
+    ledger = [json.loads(x) for x in gh.get_file("ledger/emails.jsonl", head).splitlines()]
+    assert [e["kind"] for e in ledger] == ["review_package", "final_report"]
+    assert ledger[1]["to"] == "g@resystem.org" and ledger[0]["to"] == "baileys.resystem@gmail.com"
+
+
+def test_adopt_published_brief_like_flow_test_001(h):
+    sha = h.gh.commit_files("main", {"FLOW-TEST-001/INITIAL-BRIEF-v1.0.md": "# FLOW-TEST-001 brief"}, "kitt")
+    assert h.decide("project_start", project_id="FLOW-TEST-001", title="Co-Intelligence Workflow Test",
+                    brief_ref={"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.0.md", "sha": sha}, issue_number=2,
+                    statement="I explicitly CONFIRM the initial brief v1.0") == "rejected"   # confirmed flag missing
+    assert h.decide("project_start", project_id="FLOW-TEST-001", title="Co-Intelligence Workflow Test",
+                    brief_ref={"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.0.md", "sha": "b" * 40}, issue_number=2,
+                    confirmed=True) == "rejected"                                                 # wrong version
+    assert h.decide("project_start", project_id="FLOW-TEST-001", title="Co-Intelligence Workflow Test",
+                    brief_ref={"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.0.md", "sha": sha}, issue_number=2,
+                    confirmed=True) == "accepted"
+    t = h.tasks(task_type="create_document")[0]
+    assert t["input_sha"] == sha
+    assert json.loads(t["manifest"])["files"][0]["repo_path"] == "FLOW-TEST-001/INITIAL-BRIEF-v1.0.md"
+    h.run_all()
+    assert "brief/INITIAL-BRIEF-v1.0.md" in h.adapters["KITT"].calls[0][2]
+    assert h.engine.project("FLOW-TEST-001")["stage"] == "FOUNDER_INITIAL_REVIEW"

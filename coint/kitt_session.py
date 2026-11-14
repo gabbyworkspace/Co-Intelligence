@@ -145,7 +145,12 @@ def openapi_spec(base_url: str, channel: str = "kitt_session") -> dict:
             "cycle": {"type": "integer", "minimum": 1},
             "sha": {"type": "string", "description": "Exact 40-char document or delivery SHA G reviewed."},
             "founder_statement": {"type": "string", "description": "G's decision in G's own words, verbatim."},
-            "brief": {"type": "object", "description": "project_start only: confirmed brief incl. confirmed=true"},
+            "brief": {"type": "object", "description": "project_start: confirmed brief incl. confirmed=true"},
+            "brief_ref": {"type": "object", "description": "project_start alternative: adopt a brief already "
+                          "published on GitHub, {path, sha}; requires title, project_id and confirmed=true",
+                          "properties": {"path": {"type": "string"}, "sha": {"type": "string"}}},
+            "title": {"type": "string"},
+            "confirmed": {"type": "boolean"},
             "issue_number": {"type": "integer", "description": "project_start: existing tracking issue (optional)"},
             "changes": {"type": "array", "items": {"type": "string"}},
             "route": {"type": "string", "enum": ["documents", "development"]},

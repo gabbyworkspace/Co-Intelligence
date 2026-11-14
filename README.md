@@ -31,12 +31,10 @@ jarvis.resystem@gmail.com to g@resystem.org.
 > **Status: implemented and tested locally; not deployed and not live.**
 > See [docs/UNIMPLEMENTED.md](docs/UNIMPLEMENTED.md) for what must be configured.
 >
-> **Layout not yet aligned:** the engine writes artifacts to
-> `projects/<PROJECT_ID>/{brief,documents,assets,reviews,council,development,verification,delivery,approvals}`
-> on branch `co-intel/<PROJECT_ID>` and keeps its email ledger in its database.
-> The workflow documents above use `deliveries/`, `decisions/`, `closure/` and
-> `ledger/emails.jsonl`. One layout must be adopted before projects such as
-> FLOW-TEST-001 can run through the engine.
+> The engine uses the folder layout above (see `coint/layout.py`), committing to
+> branch `co-intel/<PROJECT_ID>`. G's final decisions come through the JARVIS chat
+> connector (`/mcp/jarvis`, GitHub sign-in) — see
+> [docs/FOUNDER_DECISION_VALIDATION.md](docs/FOUNDER_DECISION_VALIDATION.md).
 
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Operating instructions and commands: [docs/OPERATING.md](docs/OPERATING.md)
@@ -45,7 +43,7 @@ jarvis.resystem@gmail.com to g@resystem.org.
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                                   # 64 tests incl. the 14 acceptance tests
+pytest                                   # 73 tests incl. the 14 acceptance tests
 FOUNDER_GITHUB_USERNAME=<g-login> python -m coint doctor
 docker compose up -d --build
 ```

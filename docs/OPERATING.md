@@ -74,20 +74,23 @@ account), an email reply, an issue close or label, or any agent statement.
 
 1. JARVIS completes development and verification → **KITT `delivery_review`**
    (via GitHub) → **JARVIS `finalize_delivery`** addresses every KITT finding.
-2. The finalized version enters `FOUNDER_FINAL_REVIEW`: a "Review Required — for
+2. The finalized version is tagged `<PROJECT_ID>-v<N>` and enters `FOUNDER_FINAL_REVIEW`: a "Review Required — for
    JARVIS to present to G" comment is posted, and the **review package is
    emailed from jarvis.resystem@gmail.com to baileys.resystem@gmail.com**
    (durable outbox; failures are posted on the issue). `/jarvis/pending` gives
    JARVIS the project ID, cycle, exact SHA, summary, verification, limitations,
    KITT's review and the email status, including the exact chat confirmation to
    use only after a successful send.
-3. G decides in the JARVIS chat. The validated decision is handed to **KITT
+3. G decides in the JARVIS chat. The automation writes the validated decision
+   reference `decisions/<PROJECT_ID>/v<N>.json` and hands it to **KITT
    `record_founder_decision`**, which publishes
-   `approvals/founder-decision-<id>.md` citing the decision reference. A record
+   `decisions/<PROJECT_ID>/v<N>.KITT_RECORD.md` citing the decision reference. A record
    that does not cite the validated decision is refused.
 4. Only after KITT's record: **APPROVE AND CLOSE** → approval re-validated
-   against the exact current delivery, closure recorded, tracking issue closed,
-   final report emailed to g@resystem.org. **REQUEST CHANGES** → Version N+1
+   against the exact current delivery, `closure/<PROJECT_ID>/CLOSURE.json`
+   written, tag `<PROJECT_ID>-v<N>-closed`, tracking issue closed, final report
+   emailed to g@resystem.org. Every send result is appended to
+   `ledger/emails.jsonl` (and the final one to `CLOSURE.json`). **REQUEST CHANGES** → Version N+1
    (previous cycle preserved), routed to KITT (documents) or JARVIS
    (development), reviewed again, and back to G through JARVIS. No closure, no
    final report.
@@ -98,16 +101,42 @@ account), an email reply, an issue close or label, or any agent statement.
   `https://<host>/kitt/openapi.json` (OAuth: authorize
   `https://github.com/login/oauth/authorize`, token
   `https://github.com/login/oauth/access_token`, scope `read:user`).
-- **JARVIS session**: a second GitHub OAuth App; the JARVIS chat must call
-  `https://<host>/jarvis/pending` and `/jarvis/founder-decision` with G's token
-  from that app (spec at `/jarvis/openapi.json`). See UNIMPLEMENTED.md: the
-  connector for the JARVIS chat is not built yet.
+- **JARVIS session (connector)**:
+  1. Create a second GitHub OAuth App (the JARVIS app). Callback URL:
+     `https://<host>/oauth/callback`. Put its ID/secret in
+     `JARVIS_OAUTH_CLIENT_ID` / `JARVIS_OAUTH_CLIENT_SECRET_FILE`, and set
+     `PUBLIC_BASE_URL=https://<host>`.
+  2. In Claude, add a custom connector with URL `https://<host>/mcp/jarvis` and
+     enable it in the Co-Intelligence project chat (the JARVIS chat). Claude
+     discovers the OAuth settings automatically (`/.well-known/...`) and
+     registers itself; only Claude's callback URLs are accepted.
+  3. G connects it and signs in with **G's own GitHub account**. The connection
+     is refused for any other GitHub user.
+  4. Tools: `list_pending_final_reviews` (read-only) and
+     `submit_founder_decision` (the chat asks G to confirm each call).
+  The same decisions can also be sent to `/jarvis/founder-decision` with a token
+  from the JARVIS OAuth App (spec at `/jarvis/openapi.json`).
 
 **If a session integration is unavailable**, its endpoints return **503 with a
 `blocker`**, `coint doctor` reports it, and the workflow waits at that gate.
 There is no bypass.
 
 `/project status` remains available as a GitHub comment for G and the agents.
+
+### Repository layout (WORKFLOW.md v2.0)
+
+Agents work with logical paths (`prompts/OUTPUT_SCHEMA.md`); `coint/layout.py`
+maps them to the team layout: `<PROJECT_ID>/` (brief, documents, assets, doc
+review), `council/<PROJECT_ID>/` (MANIFEST.json, reviews/, drafts/),
+`deliveries/<PROJECT_ID>/v<N>/` (DELIVERY.md, FINAL-REPORT.md, VERIFICATION.md/
+.json, KITT_REVIEW.md, FINDINGS.md/.json, IMPLEMENTATION.md, development/),
+`decisions/`, `closure/`, `ledger/emails.jsonl`. Commits go to branch
+`co-intel/<PROJECT_ID>`.
+
+**Adopting a brief KITT already published** (e.g. FLOW-TEST-001): KITT submits
+`project_start` with `project_id`, `title`, `issue_number`, `confirmed: true`
+and `brief_ref: {"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.0.md", "sha": "<commit>"}`
+after G confirms it in the KITT session.
 
 ## 6. Handoff manifest (manual roles)
 

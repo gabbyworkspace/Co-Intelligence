@@ -11,7 +11,7 @@ GitHub ──webhook──▶ server.py ── verify_webhook ─▶ webhook_del
                          → dispatch_outbox (GitHub comments / issue close)
 
 KITT session (ChatGPT)  ─▶ /kitt/founder-decision   ─┐  SessionVerifier: token issued to THIS session's
-JARVIS session (chat)   ─▶ /jarvis/founder-decision ─┘  OAuth App? user == founder? decision type allowed
+JARVIS chat connector  ─▶ /mcp/jarvis (MCP, GitHub sign-in via /oauth/*) ─┘  OAuth App? user == founder? decision type allowed
    ─▶ founder_decisions + audit ─▶ command handlers. JARVIS-session decisions take effect only after
    KITT's record_founder_decision task publishes a GitHub record citing the validated decision.
    GitHub comments and agent statements can never perform founder actions.
@@ -37,6 +37,7 @@ scheduler.py (single process): recover_pending_tasks · monitor_overdue_tasks ·
 | 10b | KITT_DELIVERY_REVIEW | KITT `delivery_review` | 10c |
 | 10c | JARVIS_FINALIZE_DELIVERY | JARVIS `finalize_delivery` (addresses KITT findings) | submitted → 11 |
 | 11 | FOUNDER_FINAL_REVIEW | FOUNDER gate, G ↔ JARVIS session; review package email → baileys.resystem@gmail.com | validated decision → recording |
+| 11p | FOUNDER_DECISION_REFERENCE | JARVIS `publish_decision_reference` (mechanical: decisions/<ID>/v<N>.json) | 11r |
 | 11r | FOUNDER_DECISION_RECORDING | KITT `record_founder_decision` (GitHub record) | changes → Version N+1 · approve-close → CLOSED |
 | 12 | CLOSED | — | final report email → g@resystem.org (outbox) |
 

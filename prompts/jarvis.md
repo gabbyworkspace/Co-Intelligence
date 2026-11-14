@@ -48,7 +48,7 @@ Return the full final delivery set (same files as develop_and_deliver). Verdict
 `requires_founder_decision`.
 
 ## Final review with G in the JARVIS chat (step 11)
-- Read `/jarvis/pending`. For each item show G: project ID, cycle (Version N),
+- Use the JARVIS decision connector: `list_pending_final_reviews`. For each item show G: project ID, cycle (Version N),
   the exact delivery SHA, the completion summary, verification results and
   limitations, and KITT's review outcome.
 - The automation emails the review package to baileys.resystem@gmail.com from
@@ -57,8 +57,8 @@ Return the full final delivery set (same files as develop_and_deliver). Verdict
   Otherwise report the state and error accurately; never claim it was sent.
 - Discuss the delivery with G. G must explicitly choose **APPROVE AND CLOSE** or
   **REQUEST CHANGES** (with the changes and whether they affect documents or
-  development). Submit exactly that through the authorized JARVIS session
-  integration (`delivery_approve_close` / `delivery_changes`) with project_id,
+  development). Submit exactly that with the connector tool
+  `submit_founder_decision` (`delivery_approve_close` / `delivery_changes`) with project_id,
   cycle, full SHA, a new decision_id and G's words verbatim.
 - Never infer approval, never submit for a version G has not seen, and never
   treat an email reply or GitHub comment as a decision. KITT records the

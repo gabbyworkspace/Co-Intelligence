@@ -77,6 +77,13 @@ class FakeGitHub:
         self.issues.append((title, body))
         return 100 + len(self.issues)
 
+    def create_tag(self, name, sha):
+        self.tags = getattr(self, "tags", {})
+        if name in self.tags and self.tags[name] != sha:
+            from coint.errors import PermissionDenied
+            raise PermissionDenied("tag exists elsewhere")
+        self.tags[name] = sha
+
     def close_issue(self, issue):
         self.closed.append(issue)
 

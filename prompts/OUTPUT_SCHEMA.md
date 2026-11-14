@@ -14,7 +14,9 @@ Every adapter must return a single JSON object:
 ```
 
 The automation adds cycle/revision/task/input-SHA metadata to every file it
-publishes (an HTML comment header on Markdown, a `_coint` key on JSON).
+publishes (an HTML comment header on Markdown, a `_coint` key on JSON), and maps
+these logical paths to the WORKFLOW.md v2.0 layout (`coint/layout.py`), e.g.
+`delivery/delivery.md` → `deliveries/<ID>/v<N>/DELIVERY.md`.
 
 ## Allowed verdicts and required files per task type
 

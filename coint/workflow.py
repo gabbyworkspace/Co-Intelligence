@@ -17,6 +17,7 @@ from .config import COUNCIL_ROLES, FINAL_REPORT_TO, GITHUB_URL, REVIEW_PACKAGE_T
 from .db import DB, dumps, iso
 from .errors import (CommandRejected, InvalidInput, PermanentError, StaleAssignment,
                      TransientError)
+from . import layout as L
 from .github import GitHubClient
 from .models import (EXPECTED_OUTPUTS, PROJECT_DIRS, ROUTES, STAGE_TASK,
                      VERDICTS, ProjectStatus, Stage, TaskState)
@@ -30,10 +31,6 @@ ALLOWED_PREFIXES = tuple(d + "/" for d in PROJECT_DIRS)
 def _read_prompt(name: str) -> str:
     with open(os.path.join(PROMPT_DIR, name), encoding="utf-8") as fh:
         return fh.read()
-
-
-def project_root(pid: str) -> str:
-    return f"projects/{pid}/"
 
 
 class Engine:
@@ -65,8 +62,10 @@ class Engine:
     def dispatch_outbox(self, limit: int = 50) -> int:
         """Deliver pending GitHub side effects (comments, issue close). At-least-once;
         comments carry dedupe keys in the DB so a crash re-sends at most one comment."""
-        n = 0
+        n, failed_projects = 0, set()
         for row in self.db.all("SELECT * FROM outbox WHERE dispatched_at IS NULL ORDER BY id LIMIT ?", limit):
+            if row["project_id"] in failed_projects:
+                continue  # keep per-project order (e.g. CLOSURE.json before the issue is closed)
             p = json.loads(row["payload"])
             try:
                 if row["kind"] == "comment":
@@ -78,10 +77,22 @@ class Engine:
                                   " AND issue_closed_at IS NULL", (iso(), row["project_id"], p["cycle"]))
                 elif row["kind"] == "label":
                     self.gh.add_labels(p["issue"], p["labels"])
+                elif row["kind"] == "commit":
+                    self.gh.commit_files(p["branch"], p["files"], p["message"])
+                elif row["kind"] == "tag":
+                    self.gh.create_tag(p["name"], p["sha"])
+                elif row["kind"] == "ledger":
+                    head = self.gh.branch_head(p["branch"]) or self.gh.default_branch_head()
+                    current = self.gh.get_file(L.LEDGER_PATH, head) or ""
+                    if p["entry"]["key"] not in current:  # idempotent append
+                        line = json.dumps(p["entry"], sort_keys=True)
+                        self.gh.commit_files(p["branch"], {L.LEDGER_PATH: current + line + "\n"},
+                                             f"[coint] ledger: {p['entry']['kind']} {p['entry']['key']}")
                 with self.db.tx() as c:
                     c.execute("UPDATE outbox SET dispatched_at=?, attempts=attempts+1 WHERE id=?", (iso(), row["id"]))
                 n += 1
             except Exception as e:  # noqa: BLE001 - retried by recovery
+                failed_projects.add(row["project_id"])
                 with self.db.tx() as c:
                     c.execute("UPDATE outbox SET attempts=attempts+1, last_error=? WHERE id=?", (str(e)[:500], row["id"]))
         return n
@@ -232,10 +243,10 @@ class Engine:
                    ctx.get("channel", "system"), ctx.get("attestation_id"), now))
         project = c.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
         self.comment(c, project, f"✅ Project **{pid}** started from G's confirmed brief (cycle 1), submitted "
-                                 f"through the authorized KITT session. Brief: `projects/{pid}/brief/confirmed-brief.json`"
-                                 f" @ `{base}`. Branch `{project['branch']}`. KITT is drafting the project document.")
+                                 f"through the authorized KITT session. Brief: "
+                                 f"`{ctx['brief_files'][0]['repo_path']}` @ `{base}`. Branch `{project['branch']}`. KITT is drafting the project document.")
         self.enqueue_stage(c, project, Stage.KITT_DRAFT, base,
-                           files=[{"path": "brief/confirmed-brief.json", "sha": base}],
+                           files=ctx["brief_files"],
                            context={"brief": brief, "founder_decision": ctx["url"]}, source_role="FOUNDER")
         return pid
 
@@ -315,7 +326,7 @@ class Engine:
                    "founder_statement": cmd.payload.get("founder_statement", ""),
                    "changes": cmd.payload.get("changes", []), "route": cmd.payload.get("route"),
                    "record_file": f"approvals/founder-decision-{did}.md"}
-        self.enqueue_stage(c, project, Stage.FOUNDER_DECISION_RECORDING, cmd.args["sha"],
+        self.enqueue_stage(c, project, Stage.FOUNDER_DECISION_REFERENCE, cmd.args["sha"],
                            files=self._delivery_files(c, project), context=context, source_role="JARVIS")
 
     def _delivery_files(self, c, project) -> list:
@@ -324,7 +335,8 @@ class Engine:
         if not prev:
             return []
         return self._merge_files(json.loads(prev["manifest"])["files"],
-                                 json.loads(prev["output"] or "{}").get("_published_files", []), prev["published_sha"])
+                                 json.loads(prev["output"] or "{}").get("_published_files", []), prev["published_sha"],
+                                 project["id"], prev["cycle"])
 
     def _apply_recorded_decision(self, c, project, task, record_sha):
         """Effect of a founder decision after KITT has recorded it on GitHub."""
@@ -437,11 +449,11 @@ class Engine:
             self.gh.get_commit(a["sha"])
         except InvalidInput:
             raise CommandRejected(f"Commit {a['sha']} not found in {self.s.repo_full_name}.")
-        root = project_root(project["id"])
         for rel in m["files"]:
-            content = self.gh.get_file(root + rel, a["sha"])
+            path = L.repo_path(project["id"], task["cycle"], rel)
+            content = self.gh.get_file(path, a["sha"])
             if content is None:
-                raise CommandRejected(f"File {root + rel} does not exist at {a['sha']}. Publish files before handoff.")
+                raise CommandRejected(f"File {path} does not exist at {a['sha']}. Publish files before handoff.")
             files[rel] = content
         output = {"verdict": verdict, "files": files, "summary": m.get("summary", ""),
                   "blockers": m.get("blockers", []), "limitations": m.get("limitations", []),
@@ -463,10 +475,15 @@ class Engine:
 
     # --------------------------------------------------------------- enqueueing
     @staticmethod
-    def _merge_files(base: list, paths: list, sha: str) -> list:
+    def _merge_files(base: list, paths: list, sha: str, pid: str | None = None, cycle: int | None = None) -> list:
+        """Merge published logical paths (at commit `sha`) into a manifest file list.
+        With pid/cycle the WORKFLOW.md repo path is pinned, so later cycles read the right version."""
         out = {f["path"]: f for f in base}
         for p in paths:
-            out[p] = {"path": p, "sha": sha}
+            entry = {"path": p, "sha": sha}
+            if pid is not None:
+                entry["repo_path"] = L.repo_path(pid, cycle, p)
+            out[p] = entry
         return sorted(out.values(), key=lambda f: f["path"])
 
     def enqueue_stage(self, c, project, stage: Stage, input_sha: str, *, files=None, context=None,
@@ -485,7 +502,7 @@ class Engine:
         }
         if role == "FOUNDER":
             state, external = TaskState.WAITING_FOUNDER, False
-        elif task_type == "council_dispatch":  # mechanical distribution, never a model call
+        elif task_type in ("council_dispatch", "publish_decision_reference"):  # mechanical, never a model call
             state, external = TaskState.QUEUED, False
         else:
             external = bool(getattr(self.adapters.get(role), "external", False))
@@ -523,8 +540,8 @@ class Engine:
                 f"- Project `{m['project_id']}` · cycle {m['cycle']} · revision {m['revision']}\n"
                 f"- Task type `{m['task_type']}` · input commit `{m['input_sha']}`\n"
                 f"- Inputs: " + (", ".join(f"`{f['path']}@{f['sha'][:12]}`" for f in m["files"]) or "(context only)") +
-                f"\n- Expected outputs (under `projects/{m['project_id']}/`): " +
-                ", ".join(f"`{p}`" for p in m["expected_outputs"]) +
+                "\n- Expected outputs: " +
+                ", ".join(f"`{p}` → `{L.repo_path(m['project_id'], m['cycle'], p)}`" for p in m["expected_outputs"]) +
                 f"\n\nPublish the files on branch `{project['branch']}` first, then comment:\n"
                 f"```\n/handoff <next_role> {m['task_type']} {m['cycle']} <commit_sha>\n```\nwith a ```json manifest "
                 f"(project_id, task_id, revision, source_role, files, expected_outputs, next_action, verdict).")
@@ -541,7 +558,8 @@ class Engine:
     def _founder_gate_comment(self, project, stage, sha, context) -> str:
         """Review notification on the tracking issue, addressed to the agent who presents it to G."""
         cyc, pid = project["current_cycle"], project["id"]
-        tree = f"{GITHUB_URL}/tree/{sha}/projects/{pid}"
+        tree = f"{GITHUB_URL}/tree/{sha}/{pid}"
+        dv = f"{GITHUB_URL}/blob/{sha}/deliveries/{pid}/v{cyc}"
         if self.gate_channel(stage, context) == "jarvis_session":
             who, login, where = "JARVIS", self.s.adapters["JARVIS"].github_login, "the JARVIS chat"
             pending = "`/jarvis/pending`"
@@ -560,10 +578,10 @@ class Engine:
         if stage == Stage.FOUNDER_FINAL_REVIEW:
             return head + (f"KITT has reviewed the delivery and JARVIS has addressed the findings — "
                            f"**Awaiting Founder Final Review** (G ↔ JARVIS).\n\n"
-                           f"- Exact delivery: {GITHUB_URL}/blob/{sha}/projects/{pid}/delivery/delivery.md\n"
-                           f"- Final report draft: {GITHUB_URL}/blob/{sha}/projects/{pid}/delivery/final-report.md\n"
-                           f"- Verification: {GITHUB_URL}/blob/{sha}/projects/{pid}/verification/verification-report.json\n"
-                           f"- KITT review: {GITHUB_URL}/blob/{sha}/projects/{pid}/reviews/kitt/delivery-review.md\n"
+                           f"- Exact delivery: tag `{L.delivery_tag(pid, cyc)}` · commit `{sha}`\n"
+                           f"- Delivery: {dv}/DELIVERY.md · Final report draft: {dv}/FINAL-REPORT.md\n"
+                           f"- Verification: {dv}/VERIFICATION.md · KITT review: {dv}/KITT_REVIEW.md · "
+                           f"Findings: {dv}/FINDINGS.md\n"
                            f"- Review package email → {REVIEW_PACKAGE_TO} (status in `/jarvis/pending`)\n"
                            f"- G chooses **APPROVE AND CLOSE** (`delivery_approve_close`) or **REQUEST CHANGES** "
                            f"(`delivery_changes` with `changes` and `route`), `project_id` `{pid}`, `cycle` {cyc}, "
@@ -586,14 +604,16 @@ class Engine:
             owner = self.gate_channel(stage, gctx)
             if channel and owner != channel:
                 continue
-            root = project_root(p["id"])
             item = {"project_id": p["id"], "title": p["title"], "stage": stage.value, "cycle": p["current_cycle"],
                     "sha": sha, "tracking_issue": f"{GITHUB_URL}/issues/{p['issue_number']}",
-                    "files_url": f"{GITHUB_URL}/tree/{sha}/{root}", "waiting_since": gate["created_at"]}
+                    "files_url": f"{GITHUB_URL}/tree/{sha}/" + (f"deliveries/{p['id']}/v{p['current_cycle']}"
+                                                                if stage == Stage.FOUNDER_FINAL_REVIEW else p["id"]),
+                    "waiting_since": gate["created_at"]}
             if stage == Stage.FOUNDER_INITIAL_REVIEW:
                 item["allowed_decisions"], paths = ["initial_approve", "initial_changes"], [
                     "documents/project-document.md"]
             elif stage == Stage.FOUNDER_FINAL_REVIEW:
+                item["delivery_tag"] = L.delivery_tag(p["id"], p["current_cycle"])
                 item["allowed_decisions"], paths = ["delivery_approve_close", "delivery_changes"], [
                     "delivery/delivery.md", "delivery/final-report.md", "verification/verification-report.json",
                     "reviews/jarvis/finding-dispositions.json", "reviews/kitt/delivery-review.md",
@@ -617,7 +637,7 @@ class Engine:
                 item["documents"] = {}
                 for rel in paths:
                     try:
-                        txt = self.gh.get_file(root + rel, sha)
+                        txt = self.gh.get_file(L.repo_path(p["id"], p["current_cycle"], rel), sha)
                     except Exception:  # noqa: BLE001
                         txt = None
                     if txt is not None:
@@ -632,7 +652,8 @@ class Engine:
         Returns {"status": http_status, "outcome": ..., "message": ...}."""
         import hashlib
         import re
-        from .commands import Command, ParseError, validate_brief, validate_changes, _cycle, _sha
+        from .commands import (Command, ParseError, validate_brief, validate_brief_ref, validate_changes,
+                               _cycle, _sha)
         from .kitt_session import CHANNEL_DECISIONS, DECISION_TYPES, channel_app
 
         did = str(req.get("decision_id") or "")
@@ -686,7 +707,8 @@ class Engine:
         try:
             args, payload = {}, {}
             if dtype == "project_start":
-                payload = validate_brief(req.get("brief"))
+                payload = validate_brief(req.get("brief")) if req.get("brief") is not None or \
+                    not req.get("brief_ref") else validate_brief_ref(req)
             else:
                 if dtype not in ("project_pause", "project_resume"):
                     args = {"cycle": _cycle(str(req.get("cycle", ""))), "sha": _sha(str(req.get("sha", "")))}
@@ -700,7 +722,7 @@ class Engine:
         payload["founder_statement"] = statement
 
         project = None
-        brief_sha = None
+        brief_sha, brief_files = None, []
         if dtype == "project_start":
             pid = payload.get("project_id")
             if pid and self.project(pid):
@@ -717,12 +739,27 @@ class Engine:
                     f"\n\nFounder decision `{did}`.\n\n```json\n{json.dumps(payload, indent=2)}\n```")
             pid = pid or f"CI-{issue:04d}"
             payload["project_id"] = pid
-            brief_sha = self.gh.commit_files(
-                self.s.project_branch_prefix + pid,
-                {f"projects/{pid}/brief/confirmed-brief.json": json.dumps(
-                    {**payload, "_coint": {"project_id": pid, "cycle": 1, "revision": 1, "decision_id": did,
-                                           "confirmed_by": att.github_login, "channel": "kitt_session"}}, indent=2) + "\n"},
-                f"[coint] {pid} confirmed brief from KITT session\n\nfounder decision: {did}")
+            if payload.get("brief_ref"):
+                # Adopt a brief KITT already published (e.g. FLOW-TEST-001/INITIAL-BRIEF-v1.0.md) at its exact SHA.
+                ref = payload["brief_ref"]
+                try:
+                    exists = self.gh.get_file(ref["path"], ref["sha"]) is not None
+                except InvalidInput:
+                    exists = False
+                if not exists:
+                    return reject(f"brief_ref {ref['path']} does not exist at {ref['sha']}.")
+                brief_sha = ref["sha"]
+                brief_files = [{"path": "brief/" + ref["path"].rsplit("/", 1)[-1], "sha": ref["sha"],
+                                "repo_path": ref["path"]}]
+            else:
+                rp = L.repo_path(pid, 1, "brief/confirmed-brief.json")
+                brief_sha = self.gh.commit_files(
+                    self.s.project_branch_prefix + pid,
+                    {rp: json.dumps({**payload, "_coint": {"project_id": pid, "cycle": 1, "revision": 1,
+                                                           "decision_id": did, "confirmed_by": att.github_login,
+                                                           "channel": "kitt_session"}}, indent=2) + "\n"},
+                    f"[coint] {pid} confirmed brief from KITT session\n\nfounder decision: {did}")
+                brief_files = [{"path": "brief/confirmed-brief.json", "sha": brief_sha, "repo_path": rp}]
         else:
             project = self.project(str(req.get("project_id") or ""))
             if not project:
@@ -730,7 +767,7 @@ class Engine:
             issue = project["issue_number"]
 
         ctx = {"issue": issue, "comment_id": None, "url": f"{channel}:{did}", "actor": att.github_login,
-               "channel": channel, "attestation_id": did, "brief_sha": brief_sha}
+               "channel": channel, "attestation_id": did, "brief_sha": brief_sha, "brief_files": brief_files}
         cmd = Command(action, args, payload)
         handler = getattr(self, "cmd_" + action.replace(" ", "_").replace("-", "_"))
         try:
@@ -774,6 +811,8 @@ class Engine:
         hb.start()
         try:
             self._assert_current(task, project)
+            if task["task_type"] == "publish_decision_reference":
+                return self._publish_decision_reference(task, project)
             if task["task_type"] == "council_dispatch":
                 with self.db.tx() as c:
                     self._assert_current(task, self.project(task["project_id"]))
@@ -835,12 +874,12 @@ class Engine:
         """Fetch the exact input version (never a moving 'latest')."""
         m = json.loads(task["manifest"])
         self.gh.get_commit(task["input_sha"])  # must exist (unmerged commits allowed)
-        root = project_root(project["id"])
         inputs = {}
         for f in m["files"]:
-            content = self.gh.get_file(root + f["path"], f["sha"])
+            path = L.file_repo_path(project["id"], task["cycle"], f)
+            content = self.gh.get_file(path, f["sha"])
             if content is None:
-                raise InvalidInput(f"required input {root + f['path']} missing at {f['sha']}")
+                raise InvalidInput(f"required input {path} missing at {f['sha']}")
             inputs[f["path"]] = content
         return inputs
 
@@ -941,7 +980,7 @@ class Engine:
         f = next((f for f in m["files"] if f["path"] == "reviews/kitt/delivery-findings.json"), None)
         if not f:
             return set()
-        raw = self.gh.get_file(project_root(task["project_id"]) + f["path"], f["sha"]) or "{}"
+        raw = self.gh.get_file(L.file_repo_path(task["project_id"], task["cycle"], f), f["sha"]) or "{}"
         return {x.get("id") for x in json.loads(raw).get("findings", [])}
 
     def _findings_for(self, task) -> set:
@@ -949,7 +988,7 @@ class Engine:
         f = next((f for f in m["files"] if f["path"] == "council/drafts/findings-index.json"), None)
         if not f:
             return set()
-        raw = self.gh.get_file(project_root(task["project_id"]) + f["path"], f["sha"]) or "{}"
+        raw = self.gh.get_file(L.file_repo_path(task["project_id"], task["cycle"], f), f["sha"]) or "{}"
         return {x.get("id") for x in json.loads(raw).get("findings", [])}
 
     def publish_output(self, task, output: dict, project) -> str:
@@ -957,7 +996,6 @@ class Engine:
         meta = {"project_id": task["project_id"], "cycle": task["cycle"], "revision": task["assignment_rev"],
                 "task_id": task["id"], "role": task["role"], "task_type": task["task_type"],
                 "input_sha": task["input_sha"]}
-        root = project_root(project["id"])
         files = {}
         for rel, content in output["files"].items():
             if rel.endswith(".json"):
@@ -967,7 +1005,8 @@ class Engine:
                 content = json.dumps(obj, indent=2) + "\n"
             elif rel.endswith(".md"):
                 content = f"<!-- coint-meta: {json.dumps(meta, sort_keys=True)} -->\n" + content
-            files[root + rel] = content
+            files[L.repo_path(project["id"], task["cycle"], rel)] = content
+            files.update(L.derived_files(project["id"], task["cycle"], rel, content))
         msg = (f"[coint] {task['project_id']} v{task['cycle']} r{task['assignment_rev']} {task['role']} "
                f"{task['task_type']}\n\ntask: {task['id']}\ninput: {task['input_sha']}")
         return self.gh.commit_files(project["branch"], files, msg)
@@ -989,7 +1028,7 @@ class Engine:
         if cur.rowcount != 1:
             raise StaleAssignment("task no longer owned/running")
         m = json.loads(task["manifest"])
-        files = self._merge_files(m["files"], published, output_sha)
+        files = self._merge_files(m["files"], published, output_sha, task["project_id"], task["cycle"])
         tt, verdict, pid = task["task_type"], output["verdict"], project["id"]
         c.execute("UPDATE projects SET head_sha=?, updated_at=? WHERE id=?", (output_sha, iso(), pid))
 
@@ -1010,7 +1049,7 @@ class Engine:
                       (pid, task["cycle"], output_sha, dumps(man), iso()))
             c.execute("UPDATE projects SET current_package_sha=? WHERE id=?", (output_sha, pid))
             files = [f for f in files if f["path"] in set(man["includes"]) | {"council/packages/manifest.json"}]
-            files = [{"path": f["path"], "sha": output_sha} for f in files]
+            files = [{**f, "sha": output_sha} for f in files]
         if tt == "finalize_delivery":
             ver = json.loads(output["files"]["verification/verification-report.json"])
             disp = json.loads(output["files"]["reviews/jarvis/finding-dispositions.json"])["dispositions"]
@@ -1021,6 +1060,8 @@ class Engine:
                        dumps(ver), dumps(blockers), "delivery/final-report.md", iso()))
             if verdict == "submitted":
                 c.execute("UPDATE projects SET current_delivery_sha=? WHERE id=?", (output_sha, pid))
+                self._outbox(c, pid, "tag", {"name": L.delivery_tag(pid, task["cycle"]), "sha": output_sha},
+                             f"tag:{L.delivery_tag(pid, task['cycle'])}")
         returns_to_kitt = (tt == "doc_review" and verdict == "changes_requested") or \
                           (tt == "freeze_council_package" and verdict == "feedback_not_addressed")
         if returns_to_kitt:
@@ -1077,6 +1118,55 @@ class Engine:
                 + f"\n- Next action: {nxt}\n\n{output.get('summary', '')}")
         self.comment(c, project, body, f"handoff:{task['id']}")
 
+    def _publish_decision_reference(self, task, project) -> str:
+        """JARVIS writes the validated decision reference (decisions/<ID>/v<N>.json) and hands it to KITT."""
+        import hashlib
+        ctxd = json.loads(task["manifest"])["context"]
+        dec = self.db.one("SELECT * FROM founder_decisions WHERE decision_id=?", ctxd["decision_id"])
+        if not dec or dec["outcome"] != "accepted" or dec["channel"] != "jarvis_session":
+            raise InvalidInput("no accepted JARVIS-session founder decision for this reference")
+        pid, cyc = project["id"], task["cycle"]
+        verbatim = ctxd.get("founder_statement", "")
+        ref = {
+            "project_id": pid, "version": str(cyc), "cycle": str(cyc),
+            "delivery_tag": L.delivery_tag(pid, cyc), "delivery_sha": ctxd["delivery_sha"],
+            "decision": "APPROVE_AND_CLOSE" if ctxd["decision_type"] == "delivery_approve_close" else "REQUEST_CHANGES",
+            "g_verbatim": verbatim, "g_verbatim_sha256": hashlib.sha256(verbatim.encode()).hexdigest(),
+            "requested_changes": ctxd.get("changes", []), "route": ctxd.get("route"),
+            "source": f"JARVIS session (GitHub OAuth app {dec['oauth_client_id']})",
+            "session_ref": f"founder_decision:{dec['decision_id']}",
+            "github_identity": {"login": dec["github_login"], "id": dec["github_user_id"],
+                                "token_fingerprint_prefix": dec["token_fingerprint"][:12]},
+            "decided_at_utc": dec["received_at"][:19] + "Z",
+            "validated_by": "automation: JARVIS session verifier (GitHub OAuth app + founder identity)",
+            "checks": {"source": True, "explicit": True, "exact_version": True, "current": True,
+                       "preconditions": True},
+        }
+        path = L.decision_ref_path(pid, cyc)
+        sha = task["published_sha"] or self.gh.commit_files(
+            project["branch"], {path: json.dumps(ref, indent=2) + "\n"},
+            f"[coint] {pid} v{cyc} founder decision reference {dec['decision_id']}")
+        if not task["published_sha"]:
+            Q.save_published_sha(self.db, task["id"], self.worker_id, sha)
+        with self.db.tx() as c:
+            t = Q.get_task(self.db, task["id"])
+            self._assert_current(t, self.project(pid))
+            cur = c.execute("UPDATE tasks SET state='COMPLETED', output=?, lease_owner=NULL, updated_at=?"
+                            " WHERE id=? AND state='RUNNING' AND lease_owner=?",
+                            (dumps({"verdict": "published", "_published_files": [], "decision_reference": path}),
+                             iso(), task["id"], self.worker_id))
+            if cur.rowcount != 1:
+                raise StaleAssignment("task no longer owned")
+            files = json.loads(task["manifest"])["files"] + [
+                {"path": "decision/reference.json", "sha": sha, "repo_path": path}]
+            context = {**ctxd, "decision_reference": path, "decision_reference_sha": sha}
+            self.comment(c, self.project(pid), f"📌 JARVIS published the validated decision reference "
+                                               f"[`{path}`]({GITHUB_URL}/blob/{sha}/{path}) (`{sha}`) and passed it "
+                                               "to KITT for GitHub recording.", f"decref:{task['id']}")
+            self.enqueue_stage(c, self.project(pid), Stage.FOUNDER_DECISION_RECORDING, sha, files=files,
+                               context=context, source_role="JARVIS")
+        return "completed"
+
     # ------------------------------------------------------------------ council
     def dispatch_council(self, c, project, dispatch_task):
         """Four independently tracked review tasks, identical frozen package SHA."""
@@ -1107,7 +1197,8 @@ class Engine:
                              " AND input_sha=?", (project["id"], project["current_cycle"], package_sha)).fetchone()
         files = json.loads(dispatch["manifest"])["files"]
         for role in COUNCIL_ROLES:
-            files = self._merge_files(files, [f"council/reviews/{role}.md"], by_role[role]["published_sha"])
+            files = self._merge_files(files, [f"council/reviews/{role}.md"], by_role[role]["published_sha"],
+                                      project["id"], project["current_cycle"])
         latest = max(rows, key=lambda r: r["updated_at"])["published_sha"]
         self.enqueue_stage(c, project, Stage.GRONK_DRAFT, latest, files=files,
                            context={"package_sha": package_sha,
@@ -1142,7 +1233,7 @@ class Engine:
             if bad:
                 raise CommandRejected("GitHub checks not passing on delivery: "
                                       + ", ".join(f"{b['name']}={b['conclusion'] or b['status']}" for b in bad))
-        if not self.gh.file_exists(project_root(project["id"]) + d["final_report_path"], delivery_sha):
+        if not self.gh.file_exists(L.repo_path(project["id"], cycle, d["final_report_path"]), delivery_sha):
             raise CommandRejected("Final report artifact missing at the delivery SHA.")
         return d
 
@@ -1163,6 +1254,23 @@ class Engine:
                                  f"(Version {cycle})" + (f", record `{record_sha}`" if record_sha else "")
                                  + ". Approval validated from the JARVIS session; closure recorded; closing this "
                                    "tracking issue. JARVIS will send the final report after closure validation.")
+        approval = c.execute("SELECT * FROM approvals WHERE id=?", (approval_id,)).fetchone()
+        closure_doc = {
+            "project_id": project["id"], "title": project["title"], "version": cycle, "cycle": cycle,
+            "delivery_tag": L.delivery_tag(project["id"], cycle), "delivery_sha": delivery["delivery_sha"],
+            "decision_reference": L.decision_ref_path(project["id"], cycle),
+            "founder_decision_id": approval["attestation_id"], "approved_by": approval["actor"],
+            "approval_channel": approval["channel"], "kitt_record_sha": record_sha,
+            "kitt_record": L.repo_path(project["id"], cycle, f"approvals/founder-decision-{approval['attestation_id']}.md"),
+            "closed_at_utc": iso()[:19] + "Z", "final_report_email": {"state": "PENDING"},
+        }
+        self._outbox(c, project["id"], "commit", {
+            "branch": project["branch"], "message": f"[coint] {project['id']} v{cycle} closure record",
+            "files": {L.closure_path(project["id"]): json.dumps(closure_doc, indent=2) + "\n"}},
+            f"closurejson:{project['id']}:{cycle}")
+        self._outbox(c, project["id"], "tag", {"name": L.closed_tag(project["id"], cycle),
+                                               "sha": record_sha or delivery["delivery_sha"]},
+                     f"tag:{L.closed_tag(project['id'], cycle)}")
         self._outbox(c, project["id"], "close_issue", {"issue": project["issue_number"], "cycle": cycle},
                      f"close:{project['id']}:{cycle}")
         record_audit_event(self.db, actor=self.s.founder_login, action="project.close", outcome="CLOSED",

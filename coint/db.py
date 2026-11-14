@@ -227,6 +227,14 @@ CREATE TABLE IF NOT EXISTS reminders (
     PRIMARY KEY (project_id, stage, cycle)
 );
 
+-- Dynamic client registrations for the JARVIS chat connector (no secrets stored).
+CREATE TABLE IF NOT EXISTS oauth_clients (
+    client_id TEXT PRIMARY KEY,
+    redirect_uris TEXT NOT NULL,
+    client_name TEXT,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS scan_cursors (
     name TEXT PRIMARY KEY,
     value TEXT NOT NULL
