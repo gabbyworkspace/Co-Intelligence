@@ -96,3 +96,23 @@ def test_email_channel_disabled(make_h):
     h.to_final_review()
     _reply(h, "m6", "APPROVE AND CLOSE")
     assert "skipped" in process_email_decisions(h.engine)
+
+
+def test_short_close_reply_from_baileys_in_thread_closes(h):
+    """G 2026-11-14: 'close' from g@ or baileys@, in the review thread, counts as APPROVE AND CLOSE."""
+    h.to_final_review()
+    baileys_auth = ("Authentication-Results", "mx.google.com; dkim=pass header.i=@gmail.com; spf=pass; "
+                    "dmarc=pass (p=NONE) header.from=gmail.com")
+    _reply(h, "c1", "close\n\nOn Sat JARVIS wrote:\n> [Review Required] ...",
+           sender="Baileys <baileys.resystem@gmail.com>", auth=baileys_auth)
+    assert process_email_decisions(h.engine) == {"c1": "accepted"}
+    h.run_all()
+    assert h.project()["status"] == "CLOSED"
+
+
+def test_short_close_needs_thread_and_mixed_text_ignored(h):
+    h.to_final_review()
+    _reply(h, "c2", "close", refs="")                       # not in the review thread
+    _reply(h, "c3", "close it but also change the colour")  # not a short close reply
+    assert process_email_decisions(h.engine) == {"c2": "rejected", "c3": "ignored"}
+    assert h.project()["status"] == "ACTIVE"

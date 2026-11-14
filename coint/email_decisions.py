@@ -3,7 +3,7 @@
 G may answer a "[Review Required]" package by email instead of in the JARVIS
 chat. A reply counts only if ALL of these hold:
 
-  1. Sender: the From address is one of FOUNDER_DECISION_EMAILS (default g@resystem.org).
+  1. Sender: the From address is one of FOUNDER_DECISION_EMAILS (default g@resystem.org,baileys.resystem@gmail.com).
   2. Authentication: Gmail's own Authentication-Results header (authserv-id
      mx.google.com, the top-most one) shows dmarc=pass, or dkim=pass for the
      From domain. Headers added by the sender are ignored, so they cannot fake this.
@@ -33,6 +33,8 @@ from .kitt_session import Attestation
 
 QUOTE_START = re.compile(r"^(On .+wrote:|-{2,}\s*Original Message\s*-{2,}|From: .+|_{5,})\s*$", re.I)
 SHA_RE = re.compile(r"\b[0-9a-f]{40}\b")
+# G 2026-11-14: a short close reply in the version's review thread counts as APPROVE AND CLOSE.
+SHORT_CLOSE = re.compile(r"^\s*(close|closed|approve|approved|approve and close)\s*[.!]*\s*$", re.I)
 
 
 def new_text(body: str) -> str:
@@ -112,7 +114,8 @@ def _handle(engine, msg, allowed) -> str:
     if not gmail_authenticated(headers, from_addr):
         return _log(db, msg, "rejected", "Gmail did not authenticate the sender (no dmarc/dkim pass)")
     text = new_text(msg.get("body", ""))
-    if "APPROVE AND CLOSE" not in text.upper() and "REQUEST CHANGES" not in text.upper():
+    short = bool(SHORT_CLOSE.match(text))
+    if not short and "APPROVE AND CLOSE" not in text.upper() and "REQUEST CHANGES" not in text.upper():
         return _log(db, msg, "ignored", "no decision keyword")
     # Bind to an exact review package: thread reference, or explicit project/version/SHA in the new text.
     refs = set(re.findall(r"<[^>]+>", " ".join([h.get("in-reply-to", ""), h.get("references", "")])))
@@ -121,6 +124,8 @@ def _handle(engine, msg, allowed) -> str:
         if row["rfc822_message_id"] in refs:
             pkg = row
             break
+    if pkg is None and short:
+        return _log(db, msg, "rejected", "short close reply must be in the review-package thread")
     if pkg is None:
         for row in db.all("SELECT * FROM email_outbox WHERE kind='review_package' AND state='SENT'"):
             if row["delivery_sha"] in SHA_RE.findall(text) and \
@@ -130,7 +135,7 @@ def _handle(engine, msg, allowed) -> str:
     if pkg is None:
         return _log(db, msg, "rejected", "reply is not bound to a review package (thread or project vN + full SHA)")
     try:
-        dec = parse_decision(text)
+        dec = {"decision_type": "delivery_approve_close"} if short else parse_decision(text)
     except ValueError as e:
         engine_reject = _log(db, msg, "rejected", str(e), project_id=pkg["project_id"])
         _comment(engine, pkg["project_id"], f"⛔ Email from {from_addr} about Version {pkg['cycle']} "
