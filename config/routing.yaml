@@ -1,0 +1,54 @@
+# Co-Intelligence routing — workflow v2.0 (2026-11-14)
+# Steps 1-9 unchanged; 10-12 replace the previous final review sequence.
+
+actors:
+  G:      {role: founder, channels: [kitt_chat (initial), jarvis_chat (final review)]}
+  KITT:   {role: documents + founder-decision recorder, channel: github}
+  JARVIS: {role: review/reconcile/build/verify/final review/closure email, channel: github, email: jarvis.resystem@gmail.com}
+  GRONK:  {role: council coordination, channel: github}
+  BAILEYS: {role: review package recipient, email: baileys.resystem@gmail.com}
+
+states:
+  DOC_REVIEW:                 {owner: JARVIS, step: 3,  next: AWAITING_KITT_FINAL_DOC}
+  AWAITING_KITT_FINAL_DOC:    {owner: KITT,   step: 4,  next: COUNCIL_PACKAGE}
+  COUNCIL_PACKAGE:            {owner: JARVIS, step: 5,  next: AWAITING_COUNCIL}
+  AWAITING_COUNCIL:           {owner: GRONK,  step: 6,  next: RECONCILIATION}
+  RECONCILIATION:             {owner: JARVIS, step: 7,  next: DEVELOPMENT}
+  DEVELOPMENT:                {owner: JARVIS, step: 8,  next: VERIFICATION}
+  VERIFICATION:               {owner: JARVIS, step: 9,  next: AWAITING_KITT_REVIEW}
+  AWAITING_KITT_REVIEW:       {owner: KITT,   step: 10, notify: {github_issue_label: kitt-review}, remind_after_h: 24, next: FINAL_VERSION}
+  FINAL_VERSION:              {owner: JARVIS, step: 10, next: AWAITING_FOUNDER_DECISION}
+  AWAITING_FOUNDER_DECISION:
+    owner: G
+    step: 11
+    decision_channel: jarvis_chat_only
+    notify:
+      chat: present project_id, cycle, version, tag+sha, summary, verification, limitations
+      email: {to: baileys.resystem@gmail.com, subject_prefix: "[Review Required]", template: templates/review-package-email.md}
+    remind:
+      chat: at G's next JARVIS session
+      email: {to: baileys.resystem@gmail.com, after_h: 48, every_h: 48}
+    on:
+      APPROVE_AND_CLOSE: AWAITING_KITT_DECISION_RECORD
+      REQUEST_CHANGES:   AWAITING_KITT_DECISION_RECORD
+      validation_unavailable: PAUSED_AT_APPROVAL_GATE
+  AWAITING_KITT_DECISION_RECORD:
+    owner: KITT
+    step: 11
+    notify: {github_issue_label: record-founder-decision}
+    remind_after_h: 24
+    on:
+      recorded_APPROVE_AND_CLOSE: CLOSURE
+      recorded_REQUEST_CHANGES:   NEW_VERSION   # N+1, previous cycle preserved -> DEVELOPMENT
+  CLOSURE:
+    owner: JARVIS
+    step: 12
+    requires: [development_complete, verification_passed, decision_validated, kitt_record_matches_sha]
+    email: {from: jarvis.resystem@gmail.com, to: g@resystem.org, subject: "[Project Closed] PROJECT_ID — PROJECT_TITLE — Version N", once_per: [project_id, version]}
+    next: CLOSED
+
+rules:
+  - Before CLOSED, all notifications are labelled "[Review Required]".
+  - No agent-generated statement is approval evidence.
+  - Never process duplicate or superseded versions.
+  - JARVIS never approves or closes on G's behalf.
