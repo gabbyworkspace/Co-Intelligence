@@ -1,0 +1,14 @@
+[Unit]
+Description=Co-Intelligence scheduler (single instance)
+After=network-online.target coint-web.service
+
+[Service]
+User=coint
+WorkingDirectory=/opt/co-intelligence
+EnvironmentFile=/etc/co-intelligence/env
+ExecStart=/opt/co-intelligence/.venv/bin/python -m coint scheduler
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
