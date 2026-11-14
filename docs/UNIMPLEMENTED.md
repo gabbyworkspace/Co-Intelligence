@@ -42,8 +42,10 @@ or any model provider.
   agent (KITT for initial review, JARVIS for final review) plus that session's
   `/pending` endpoint. Neither ChatGPT nor a Claude chat can receive pushed
   messages, so an agent sees new items when G opens the session (and the agent
-  checks pending reviews) or via its GitHub @mention. Founder decisions are never
-  taken from email; there is no founder-mailbox polling.
+  checks pending reviews) or via its GitHub @mention.
+- **Email-reply decisions** (optional, final review only) read the JARVIS inbox
+  every 5 minutes and need the Gmail OAuth `gmail.readonly` scope. They are only
+  as strong as the sender domain's DMARC/DKIM and G's mailbox security.
 - **KITT's own work from ChatGPT.** KITT's tasks (draft, apply decisions,
   finalize, delivery review, recording G's final decisions) still need files committed to GitHub and a `/handoff`
   from KITT's configured GitHub login (`ADAPTER_KITT_KIND=manual`). A ChatGPT GPT

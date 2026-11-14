@@ -130,6 +130,7 @@ DECISION_TYPES = {
 CHANNEL_DECISIONS = {
     "kitt_session": {"project_start", "initial_approve", "initial_changes", "project_pause", "project_resume"},
     "jarvis_session": {"delivery_approve_close", "delivery_changes", "project_pause", "project_resume"},
+    "email": {"delivery_approve_close", "delivery_changes"},   # G's verified reply to a review package
 }
 
 

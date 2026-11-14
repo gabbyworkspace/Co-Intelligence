@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS founder_decisions (
     github_user_id INTEGER NOT NULL,
     oauth_client_id TEXT NOT NULL,
     token_fingerprint TEXT NOT NULL,
-    channel TEXT NOT NULL,           -- kitt_session | jarvis_session
+    channel TEXT NOT NULL,           -- kitt_session | jarvis_session | email
     outcome TEXT NOT NULL,           -- accepted | rejected
     detail TEXT,
     received_at TEXT NOT NULL
@@ -233,6 +233,17 @@ CREATE TABLE IF NOT EXISTS oauth_clients (
     redirect_uris TEXT NOT NULL,
     client_name TEXT,
     created_at TEXT NOT NULL
+);
+
+-- Every founder email reply examined as a possible decision.
+CREATE TABLE IF NOT EXISTS email_decisions (
+    gmail_id TEXT PRIMARY KEY,
+    from_addr TEXT NOT NULL,
+    message_id TEXT,
+    outcome TEXT NOT NULL,           -- accepted | rejected | ignored
+    detail TEXT,
+    decision_id TEXT,
+    examined_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS scan_cursors (

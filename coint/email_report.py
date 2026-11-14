@@ -14,6 +14,7 @@ from email.message import EmailMessage
 from email.utils import formatdate
 
 from .audit import record_audit_event
+from .authz import is_founder
 from .config import FINAL_REPORT_FROM, FINAL_REPORT_TO, GITHUB_URL, REVIEW_PACKAGE_TO
 from .db import iso, parse_iso, utcnow
 from .errors import PermanentError
@@ -79,16 +80,22 @@ def check_preconditions(engine, row) -> dict:
     if not closure["issue_closed_at"]:
         raise NotReady("tracking issue close not yet confirmed")                          # 4
     if not approval or approval["decision"] != "approve-close" or \
-            approval["actor"].lower() != engine.s.founder_login.lower() or \
+            not is_founder(engine.s, approval["actor"]) or \
             approval["sha"] != closure["delivery_sha"] or approval["sha"] != project["current_delivery_sha"] or \
             approval["cycle"] != row["cycle"]:
         raise PermanentError("approval does not match the exact current delivery")         # 3
     att = db.one("SELECT * FROM founder_decisions WHERE decision_id=?", approval["attestation_id"] or "")
-    if approval["channel"] != "jarvis_session" or not att or att["outcome"] != "accepted" or \
-            att["channel"] != "jarvis_session" or att["decision_type"] != "delivery_approve_close" or \
-            att["sha"] != approval["sha"] or att["github_login"].lower() != engine.s.founder_login.lower() or \
-            att["oauth_client_id"] != engine.s.jarvis_oauth_client_id:
-        raise PermanentError("approval is not backed by a validated founder decision from the JARVIS session")  # 3
+    if approval["channel"] == "email":
+        identity_ok = att is not None and att["channel"] == "email" and att["oauth_client_id"] == "gmail" and \
+            att["github_login"].lower() in {a.lower() for a in engine.s.founder_decision_emails}
+    else:
+        identity_ok = att is not None and att["channel"] == "jarvis_session" and \
+            att["github_login"].lower() == engine.s.founder_login.lower() and \
+            att["oauth_client_id"] == engine.s.jarvis_oauth_client_id
+    if approval["channel"] not in ("jarvis_session", "email") or not identity_ok or att["outcome"] != "accepted" \
+            or att["decision_type"] != "delivery_approve_close" or att["sha"] != approval["sha"]:
+        raise PermanentError("approval is not backed by a validated founder decision (JARVIS session or "
+                             "verified email reply)")  # 3
     rec = [t for t in db.all("SELECT * FROM tasks WHERE project_id=? AND cycle=? AND task_type='record_founder_decision'"
                              " AND state='COMPLETED'", row["project_id"], row["cycle"])
            if json.loads(t["manifest"])["context"].get("decision_id") == att["decision_id"]]
@@ -139,7 +146,8 @@ def check_review_preconditions(engine, row) -> dict:
             "verification": json.loads(files["verification/verification-report.json"])}
 
 
-def compose_review(ctx: dict, row) -> EmailMessage:
+def compose_review(ctx: dict, row, founder_emails=("g@resystem.org",)) -> EmailMessage:
+    FOUNDER_EMAILS_PLACEHOLDER = founder_emails  # noqa: N806
     p, ver, sha = ctx["project"], ctx["verification"], row["delivery_sha"]
     blob = f"{GITHUB_URL}/blob/{sha}/deliveries/{p['id']}/v{row['cycle']}"
     checks = "\n".join(f"  - {c.get('name')}: {c.get('result')} — {c.get('evidence', '')}" for c in ver.get("checks", []))
@@ -165,8 +173,12 @@ LIMITATIONS
 {lims}
 
 HOW TO DECIDE
-G reviews and decides in the JARVIS chat: APPROVE AND CLOSE or REQUEST CHANGES.
-No email reply is required, and replies to this email are not treated as decisions.
+G decides in the JARVIS chat, or replies to this email (no reply is required).
+A reply counts only if it comes from {", ".join(FOUNDER_EMAILS_PLACEHOLDER)}, passes Gmail sender
+authentication, and contains exactly one of:
+  APPROVE AND CLOSE
+  REQUEST CHANGES   (add "Route: documents" or "Route: development" and one "- change" per line)
+Decision reference: {p['id']} v{row['cycle']} {sha}
 
 COMPLETION SUMMARY (final report draft)
 ---------------------------------------
@@ -260,7 +272,7 @@ def send_email(engine, row) -> str:
         if row["to_addr"] != FIXED_RECIPIENT[row["kind"]]:
             raise PermanentError("recipient does not match the fixed recipient for this email kind")
         if row["kind"] == "review_package":
-            msg = compose_review(check_review_preconditions(engine, row), row)
+            msg = compose_review(check_review_preconditions(engine, row), row, engine.s.founder_decision_emails)
         else:
             msg = compose(check_preconditions(engine, row), row["rfc822_message_id"])
         if engine.gmail.authorized_address() != FINAL_REPORT_FROM:

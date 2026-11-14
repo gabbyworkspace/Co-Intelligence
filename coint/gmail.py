@@ -75,6 +75,27 @@ class GmailClient:
         msgs = res.get("messages") or []
         return msgs[0] if msgs else None
 
+    def list_message_ids(self, query: str, limit: int = 50) -> list[str]:
+        q = urllib.parse.quote(query)
+        res = self._get(f"/messages?q={q}&maxResults={limit}")
+        return [m["id"] for m in res.get("messages") or []]
+
+    def get_full_message(self, mid: str) -> dict:
+        """Headers in order (top-most first) and the text/plain body."""
+        data = self._get(f"/messages/{mid}?format=full")
+        payload = data.get("payload") or {}
+        headers = [(h["name"], h["value"]) for h in payload.get("headers", [])]
+
+        def find_text(part):
+            if part.get("mimeType") == "text/plain" and (part.get("body") or {}).get("data"):
+                return base64.urlsafe_b64decode(part["body"]["data"] + "==").decode("utf-8", "replace")
+            for sub in part.get("parts") or []:
+                t = find_text(sub)
+                if t:
+                    return t
+            return ""
+        return {"id": data["id"], "thread_id": data.get("threadId"), "headers": headers, "body": find_text(payload)}
+
     def send_raw(self, raw_rfc822: bytes) -> dict:
         token = self._token()  # failures here are definitely pre-send
         req = urllib.request.Request(self.API + "/messages/send", method="POST",

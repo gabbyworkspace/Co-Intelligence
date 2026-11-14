@@ -17,7 +17,12 @@ def actor_roles(settings: Settings, actor: str) -> set[str]:
 
 
 def is_founder(settings: Settings, actor: str) -> bool:
-    return actor.lower() == settings.founder_login.lower()
+    """G's verified identity: the GitHub login, or (email channel only) a founder decision address.
+    GitHub logins cannot contain '@', so an email address never matches a GitHub-authenticated actor."""
+    a = actor.lower()
+    if "@" in a:
+        return a in {e.lower() for e in getattr(settings, "founder_decision_emails", ())}
+    return a == settings.founder_login.lower()
 
 
 FOUNDER_CHANNEL_MSG = ("Founder decisions are accepted only through a validated founder session: "
@@ -30,8 +35,8 @@ ACTION_CHANNELS = {
     "project start": {"kitt_session"},
     "initial approve": {"kitt_session"},
     "initial changes": {"kitt_session"},
-    "delivery changes": {"jarvis_session"},
-    "delivery approve-close": {"jarvis_session"},
+    "delivery changes": {"jarvis_session", "email"},
+    "delivery approve-close": {"jarvis_session", "email"},
     "project pause": {"kitt_session", "jarvis_session"},
     "project resume": {"kitt_session", "jarvis_session"},
 }

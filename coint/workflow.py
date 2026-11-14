@@ -343,7 +343,7 @@ class Engine:
         ctxd = json.loads(task["manifest"])["context"]
         dec = c.execute("SELECT * FROM founder_decisions WHERE decision_id=?", (ctxd["decision_id"],)).fetchone()
         approval = c.execute("SELECT * FROM approvals WHERE id=?", (ctxd["approval_id"],)).fetchone()
-        if not dec or dec["outcome"] != "accepted" or dec["channel"] != "jarvis_session" \
+        if not dec or dec["outcome"] != "accepted" or dec["channel"] not in ("jarvis_session", "email") \
                 or dec["sha"] != project["current_delivery_sha"] or dec["cycle"] != project["current_cycle"] \
                 or not approval or approval["attestation_id"] != dec["decision_id"]:
             raise InvalidInput("recorded decision does not match a validated JARVIS-session founder decision "
@@ -669,8 +669,13 @@ class Engine:
         dtype = req.get("decision_type")
         action = DECISION_TYPES.get(dtype)
         channel = att.channel
-        if channel not in CHANNEL_DECISIONS or not channel_app(self.s, channel)[0] or \
-                att.oauth_client_id != channel_app(self.s, channel)[0]:
+        if channel == "email":  # set only by the verified-reply poller (coint/email_decisions.py)
+            trusted = self.s.email_decisions_enabled and att.oauth_client_id == "gmail" and \
+                att.github_login.lower() in {a.lower() for a in self.s.founder_decision_emails}
+        else:
+            trusted = channel in CHANNEL_DECISIONS and bool(channel_app(self.s, channel)[0]) and \
+                att.oauth_client_id == channel_app(self.s, channel)[0]
+        if not trusted:
             record_audit_event(self.db, actor=att.github_login, action=f"founder_decision.{dtype}",
                                outcome="rejected", detail={"decision_id": did, "reason": "untrusted session app"})
             return {"status": 401, "outcome": "rejected", "message": "not an authorized founder session"}
@@ -786,12 +791,18 @@ class Engine:
     @staticmethod
     def _decision_record_comment(att, did, dtype, req, statement) -> str:
         quoted = "\n".join("> " + line for line in statement.splitlines())
-        if att.channel == "jarvis_session":
-            title = (f"✅ **Founder decision validated (JARVIS session)** — `{dtype}` · decision `{did}` · "
+        if att.channel in ("jarvis_session", "email"):
+            how = "JARVIS session" if att.channel == "jarvis_session" else f"email reply from {att.github_login}"
+            title = (f"✅ **Founder decision validated ({how})** — `{dtype}` · decision `{did}` · "
                      "passed to KITT for GitHub recording; no effect until KITT records it")
         else:
             title = f"🧾 **Founder decision recorded (KITT session)** — `{dtype}` · decision `{did}`"
         sess = "JARVIS" if att.channel == "jarvis_session" else "KITT"
+        if att.channel == "email":
+            return (f"{title}\n\n- Project `{req.get('project_id')}` · cycle {req.get('cycle')} · version "
+                    f"`{req.get('sha')}`\n- Channel: email reply, sender {att.github_login} authenticated by Gmail "
+                    f"(DMARC/DKIM), bound to the review package; Message-ID fingerprint "
+                    f"`{att.token_fingerprint[:12]}`\n- G's statement:\n{quoted}")
         return (f"{title}\n\n"
                 f"- Project `{req.get('project_id', '(new)')}` · cycle {req.get('cycle', 1)} · version "
                 f"`{req.get('sha', '—')}`\n- Channel: authorized {sess} session (GitHub OAuth app "
@@ -1123,8 +1134,8 @@ class Engine:
         import hashlib
         ctxd = json.loads(task["manifest"])["context"]
         dec = self.db.one("SELECT * FROM founder_decisions WHERE decision_id=?", ctxd["decision_id"])
-        if not dec or dec["outcome"] != "accepted" or dec["channel"] != "jarvis_session":
-            raise InvalidInput("no accepted JARVIS-session founder decision for this reference")
+        if not dec or dec["outcome"] != "accepted" or dec["channel"] not in ("jarvis_session", "email"):
+            raise InvalidInput("no accepted final-review founder decision for this reference")
         pid, cyc = project["id"], task["cycle"]
         verbatim = ctxd.get("founder_statement", "")
         ref = {
@@ -1133,12 +1144,16 @@ class Engine:
             "decision": "APPROVE_AND_CLOSE" if ctxd["decision_type"] == "delivery_approve_close" else "REQUEST_CHANGES",
             "g_verbatim": verbatim, "g_verbatim_sha256": hashlib.sha256(verbatim.encode()).hexdigest(),
             "requested_changes": ctxd.get("changes", []), "route": ctxd.get("route"),
-            "source": f"JARVIS session (GitHub OAuth app {dec['oauth_client_id']})",
+            "source": (f"Email reply from {dec['github_login']} (Gmail-authenticated, bound to the review package)"
+                       if dec["channel"] == "email" else f"JARVIS session (GitHub OAuth app {dec['oauth_client_id']})"),
+            "channel": dec["channel"],
             "session_ref": f"founder_decision:{dec['decision_id']}",
             "github_identity": {"login": dec["github_login"], "id": dec["github_user_id"],
                                 "token_fingerprint_prefix": dec["token_fingerprint"][:12]},
             "decided_at_utc": dec["received_at"][:19] + "Z",
-            "validated_by": "automation: JARVIS session verifier (GitHub OAuth app + founder identity)",
+            "validated_by": ("automation: email decision checks (sender, Gmail DMARC/DKIM, thread binding)"
+                             if dec["channel"] == "email" else
+                             "automation: JARVIS session verifier (GitHub OAuth app + founder identity)"),
             "checks": {"source": True, "explicit": True, "exact_version": True, "current": True,
                        "preconditions": True},
         }

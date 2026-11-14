@@ -60,8 +60,9 @@ Return the full final delivery set (same files as develop_and_deliver). Verdict
   development). Submit exactly that with the connector tool
   `submit_founder_decision` (`delivery_approve_close` / `delivery_changes`) with project_id,
   cycle, full SHA, a new decision_id and G's words verbatim.
-- Never infer approval, never submit for a version G has not seen, and never
-  treat an email reply or GitHub comment as a decision. KITT records the
+- G may instead reply to the review-package email; the automation verifies such
+  replies itself. Never treat a GitHub comment, or an email you merely read, as
+  a decision, and never infer approval or submit for a version G has not seen. KITT records the
   validated decision on GitHub; closure and the final report follow only then.
 - If the decision integration is unavailable, tell G the approval gate is paused
   and why; do not approve any other way.

@@ -81,7 +81,9 @@ account), an email reply, an issue close or label, or any agent statement.
    JARVIS the project ID, cycle, exact SHA, summary, verification, limitations,
    KITT's review and the email status, including the exact chat confirmation to
    use only after a successful send.
-3. G decides in the JARVIS chat. The automation writes the validated decision
+3. G decides in the JARVIS chat, or replies to the review-package email
+   (verified: G's address, Gmail DMARC/DKIM, bound to the exact version — see
+   docs/FOUNDER_DECISION_VALIDATION.md, Option B). The automation writes the validated decision
    reference `decisions/<PROJECT_ID>/v<N>.json` and hands it to **KITT
    `record_founder_decision`**, which publishes
    `decisions/<PROJECT_ID>/v<N>.KITT_RECORD.md` citing the decision reference. A record
@@ -159,6 +161,7 @@ under `projects/<PROJECT_ID>/`.
 | recover_pending_tasks | `*/5 * * * *` | unprocessed webhooks, missed comments/handoffs, expired leases, eligible tasks |
 | monitor_overdue_tasks | `2,17,32,47 * * * *` | stalled tasks, missing council reviews (60 min default) |
 | email_recovery | `*/5 * * * *` | approved+closed cycles without a confirmed final email; uncertain-send reconciliation |
+| founder_email_decisions | `*/5 * * * *` | G's optional email replies to review packages (verified) |
 | founder_reminders | `17 5 * * *` | 09:17 Asia/Dubai; once per 24 h per pending review; never advances work |
 
 ## 8. Runbook

@@ -21,6 +21,7 @@ JOBS = {
     "monitor_overdue_tasks": "2,17,32,47 * * * *",
     "email_recovery": "*/5 * * * *",
     "founder_reminders": "17 5 * * *",
+    "founder_email_decisions": "*/5 * * * *",   # G's optional reply to a review package
 }
 
 
@@ -144,6 +145,9 @@ def run_job(engine, name: str):
         return process_email_outbox(engine)
     if name == "founder_reminders":
         return founder_reminders(engine)
+    if name == "founder_email_decisions":
+        from .email_decisions import process_email_decisions
+        return process_email_decisions(engine)
     raise ValueError(name)
 
 

@@ -178,11 +178,21 @@ class FakeAdapter(AgentAdapter):
 class FakeGmail:
     def __init__(self, mode="ok"):
         self.mode = mode          # ok | uncertain_but_sent | uncertain_not_sent | presend_fail
+        self.inbox = {}
         self.mailbox = {}         # message-id -> gmail id
         self.sends = []
 
     def authorized_address(self):
         return "jarvis.resystem@gmail.com"
+
+    # inbox for founder email replies: id -> {"headers": [...], "body": str}
+    inbox: dict = {}
+
+    def list_message_ids(self, query):
+        return list(self.inbox)
+
+    def get_full_message(self, mid):
+        return {"id": mid, "thread_id": "t", **self.inbox[mid]}
 
     def find_sent_by_message_id(self, mid):
         gid = self.mailbox.get(mid)

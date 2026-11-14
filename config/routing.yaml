@@ -21,7 +21,7 @@ states:
   AWAITING_FOUNDER_DECISION:
     owner: G
     step: 11
-    decision_channel: jarvis_chat_only
+    decision_channel: [jarvis_chat_connector, verified_email_reply]   # email: FOUNDER_DECISION_EMAILS, Gmail DMARC/DKIM, bound to version
     notify:
       chat: present project_id, cycle, version, tag+sha, summary, verification, limitations
       email: {to: baileys.resystem@gmail.com, subject_prefix: "[Review Required]", template: templates/review-package-email.md}

@@ -410,7 +410,8 @@ def test_step11_review_package_emailed_to_baileys(h):
     assert m["Subject"].startswith("[Review Required] CI-TEST — Widget — Version 1")
     body = m.get_content()
     assert p["current_delivery_sha"] in body and "AC1: passed" in body and "demo only" in body
-    assert "No email reply is required" in body and "Project Closed" not in m["Subject"]
+    assert "no reply is required" in body and "Project Closed" not in m["Subject"]
+    assert f"CI-TEST v1 {p['current_delivery_sha']}" in body
     item = h.engine.pending_reviews(channel="jarvis_session")[0]
     assert item["review_package_email"]["state"] == "SENT"
     assert item["review_package_email"]["chat_confirmation"] == \

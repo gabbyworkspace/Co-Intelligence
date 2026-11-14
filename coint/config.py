@@ -86,6 +86,8 @@ class Settings:
     kitt_oauth_client_secret: str | None = None
     jarvis_oauth_client_id: str | None = None    # OAuth app of the authorized JARVIS chat session
     jarvis_oauth_client_secret: str | None = None
+    founder_decision_emails: tuple[str, ...] = ("g@resystem.org",)  # who may decide by email reply
+    email_decisions_enabled: bool = True
     founder_user_id: str | None = None           # optional: pin G's numeric GitHub user id
     public_base_url: str | None = None           # e.g. https://coint.example.com (for OpenAPI)
     lease_seconds: int = 300
@@ -164,6 +166,9 @@ def load_settings() -> Settings:
         jarvis_oauth_client_id=_env("JARVIS_OAUTH_CLIENT_ID"),
         jarvis_oauth_client_secret=_env("JARVIS_OAUTH_CLIENT_SECRET"),
         founder_user_id=_env("FOUNDER_GITHUB_USER_ID"),
+        founder_decision_emails=tuple(a.strip().lower() for a in
+                                      (_env("FOUNDER_DECISION_EMAILS") or "g@resystem.org").split(",") if a.strip()),
+        email_decisions_enabled=(_env("EMAIL_DECISIONS_ENABLED", "true").lower() == "true"),
         public_base_url=_env("PUBLIC_BASE_URL"),
         lease_seconds=_int("LEASE_SECONDS", 300),
         heartbeat_seconds=_int("HEARTBEAT_SECONDS", 60),
