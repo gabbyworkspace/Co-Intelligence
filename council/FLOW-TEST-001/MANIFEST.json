@@ -1,0 +1,30 @@
+{
+  "project_id": "FLOW-TEST-001",
+  "cycle": 1,
+  "package": "council",
+  "frozen_by": "JARVIS (manual pickup in JARVIS chat; not automated)",
+  "frozen_at_utc": "2026-11-14T17:01:01Z",
+  "base_commit": "591aacb2385cd1352950a5246b76d641ebf7cec8",
+  "includes": [
+    {"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.1.md", "sha": "c1eba1bb6764f2a370631f9748b625e40d18bac9", "role": "approved brief (KITT revision of founder-approved v1.0)"},
+    {"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.0.md", "sha": "c237f42b98bff0ac109020283181e99c60d6d90d", "role": "founder-approved v1.0 (reference)"},
+    {"path": "WORKFLOW.md", "sha": "591aacb2385cd1352950a5246b76d641ebf7cec8", "role": "workflow v2.0"},
+    {"path": "TEST-RESULTS.md", "sha": "591aacb2385cd1352950a5246b76d641ebf7cec8", "role": "evidence ledger"}
+  ],
+  "approved_requirements": [
+    "Deliverable: dependency-free HTML at deliveries/FLOW-TEST-001/v1/index.html",
+    "Initial text exactly: Co-Intelligence workflow test passed.",
+    "Button changes text exactly to: All agents completed their handoffs.",
+    "No external dependencies, deployment, simulated agents or approval bypass"
+  ],
+  "acceptance_criteria": "Checks C01-C19 in INITIAL-BRIEF-v1.1.md, each with independent PASS evidence in TEST-RESULTS.md",
+  "open_questions": [
+    "C17-C19 (event pickup, duplicate replay, 5-minute recovery) need the configured automation; BLOCKED until it runs",
+    "Brief says preserve an apostrophe; neither UI string contains one (no effect)",
+    "WORKFLOW.md Q1/Q2 (escalation channel, reminder intervals) still open for G"
+  ],
+  "jarvis_step4_check": "All 6 feedback items from issuecomment-6880977420 addressed in v1.1; scope unchanged",
+  "council": {"coordinator": "GRONK", "reviewers": ["A", "B", "C", "D"], "independent": true,
+              "return": ["four individual reviews", "proposed final draft", "findings index", "conflicts and unresolved questions"],
+              "location": "council/FLOW-TEST-001/", "word_limit_per_review": 150}
+}
