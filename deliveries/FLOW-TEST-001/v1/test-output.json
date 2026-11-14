@@ -1,0 +1,93 @@
+{
+  "file": "deliveries/FLOW-TEST-001/v1/index.html",
+  "run_at_utc": "2026-11-14T17:28:42.679Z",
+  "chromium": "153.0.8010.12",
+  "passed": 14,
+  "total": 14,
+  "results": [
+    {
+      "id": "S1",
+      "name": "No external URLs (http/https/// ) in source",
+      "result": "PASS",
+      "detail": "regex scan"
+    },
+    {
+      "id": "S2",
+      "name": "No src= or href= attributes",
+      "result": "PASS",
+      "detail": "regex scan"
+    },
+    {
+      "id": "S3",
+      "name": "Restrictive CSP meta present (default-src none)",
+      "result": "PASS",
+      "detail": "meta tag"
+    },
+    {
+      "id": "S4",
+      "name": "Text updated via textContent only (no innerHTML/outerHTML/document.write/eval)",
+      "result": "PASS",
+      "detail": "source scan"
+    },
+    {
+      "id": "S5",
+      "name": "No fetch/XMLHttpRequest/WebSocket/sendBeacon/import",
+      "result": "PASS",
+      "detail": "source scan"
+    },
+    {
+      "id": "R1",
+      "name": "Initial text exact",
+      "result": "PASS",
+      "detail": "\"Co-Intelligence workflow test passed.\""
+    },
+    {
+      "id": "R2",
+      "name": "Button label exact",
+      "result": "PASS",
+      "detail": "\"Complete handoffs\""
+    },
+    {
+      "id": "R3",
+      "name": "Exactly one button",
+      "result": "PASS",
+      "detail": "1"
+    },
+    {
+      "id": "R4",
+      "name": "No quotation marks displayed (initial)",
+      "result": "PASS",
+      "detail": "\"Co-Intelligence workflow test passed.\\n\\nComplete handoffs\""
+    },
+    {
+      "id": "R5",
+      "name": "First click shows final text exactly",
+      "result": "PASS",
+      "detail": "\"All agents completed their handoffs.\""
+    },
+    {
+      "id": "R6",
+      "name": "Repeat clicks are a no-op (text and DOM unchanged)",
+      "result": "PASS",
+      "detail": "\"All agents completed their handoffs.\""
+    },
+    {
+      "id": "R7",
+      "name": "No quotation marks displayed (final)",
+      "result": "PASS",
+      "detail": "\"All agents completed their handoffs.\\n\\nComplete handoffs\""
+    },
+    {
+      "id": "R8",
+      "name": "No network requests other than the file itself",
+      "result": "PASS",
+      "detail": "[\"file:///home/claude/co-intelligence/deliveries/FLOW-TEST-001/v1/index.html\"]"
+    },
+    {
+      "id": "R9",
+      "name": "No console errors or CSP violations",
+      "result": "PASS",
+      "detail": "[]"
+    }
+  ]
+}

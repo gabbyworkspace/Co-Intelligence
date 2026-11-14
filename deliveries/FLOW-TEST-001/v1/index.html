@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'sha256-Ih9IbNVsorpaf/vVmQYrdCCS0cbT70L9A/E6ciP5Wf8='; style-src 'sha256-MCy2z6VAkQQhwns5FKopO54YM2WHrcorjvkuWFwlr0E='; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLOW-TEST-001</title>
+<style>body{font-family:system-ui,sans-serif;margin:2rem;line-height:1.5}#message{font-size:1.25rem;margin:0 0 1rem}button{font:inherit;padding:.5rem 1rem;cursor:pointer}</style>
+</head>
+<body>
+<p id="message">Co-Intelligence workflow test passed.</p>
+<button id="complete" type="button">Complete handoffs</button>
+<script>(function(){var done=false;var msg=document.getElementById("message");document.getElementById("complete").addEventListener("click",function(){if(done){return;}done=true;msg.textContent="All agents completed their handoffs.";});})();</script>
+</body>
+</html>
