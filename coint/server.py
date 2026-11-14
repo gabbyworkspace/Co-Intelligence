@@ -12,6 +12,9 @@ from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import queue as Q
+from .audit import record_audit_event
+from .errors import AuthError, PermissionDenied, TransientError
+from .kitt_session import SessionUnavailable, openapi_spec
 from .webhook import WebhookRejected, persist_delivery, verify_webhook
 
 log = logging.getLogger("coint.server")
@@ -67,13 +70,57 @@ def make_handler(engine, worker: Worker):
             self.end_headers()
             self.wfile.write(data)
 
+        def _bearer(self) -> str:
+            h = self.headers.get("Authorization") or ""
+            return h[7:].strip() if h.lower().startswith("bearer ") else ""
+
+        def _verify_kitt(self):
+            """Authorized KITT session + founder identity, or an error response."""
+            try:
+                return engine.kitt_verifier.verify_founder(self._bearer()), None
+            except SessionUnavailable as e:
+                record_audit_event(engine.db, actor="unknown", action="kitt_session.unavailable",
+                                   outcome="BLOCKER", detail={"reason": str(e)})
+                return None, (503, {"error": "founder decision channel unavailable", "blocker": str(e)})
+            except PermissionDenied as e:
+                record_audit_event(engine.db, actor="unknown", action="kitt_session.denied", outcome="403",
+                                   detail={"reason": str(e)})
+                return None, (403, {"error": str(e)})
+            except AuthError as e:
+                return None, (401, {"error": str(e)})
+            except TransientError as e:
+                return None, (503, {"error": f"temporarily unable to verify session: {e}"})
+
         def do_GET(self):
             if self.path == "/healthz":
                 engine.db.one("SELECT 1")
                 return self._send(200, {"ok": True})
+            if self.path == "/kitt/openapi.json":
+                base = engine.s.public_base_url or f"http://{self.headers.get('Host', 'localhost')}"
+                return self._send(200, openapi_spec(base))
+            if self.path == "/kitt/pending":
+                att, err = self._verify_kitt()
+                if err:
+                    return self._send(*err)
+                return self._send(200, {"pending": engine.pending_reviews()})
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
+            if self.path == "/kitt/founder-decision":
+                att, err = self._verify_kitt()
+                if err:
+                    return self._send(*err)
+                length = int(self.headers.get("Content-Length") or 0)
+                if length > 1024 * 1024:
+                    return self._send(413, {"error": "too large"})
+                try:
+                    req = json.loads(self.rfile.read(length) or b"{}")
+                    assert isinstance(req, dict)
+                except (ValueError, AssertionError):
+                    return self._send(400, {"error": "body must be a JSON object"})
+                res = engine.founder_decision(att, req)
+                worker.wake.set()
+                return self._send(res.pop("status"), res)
             if self.path != "/webhook":
                 return self._send(404, {"error": "not found"})
             length = int(self.headers.get("Content-Length") or 0)

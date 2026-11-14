@@ -46,6 +46,13 @@ def doctor(settings) -> int:
         (ok if addr == FINAL_REPORT_FROM else problems).append(f"Gmail authorized as {addr}")
     except Exception as e:  # noqa: BLE001
         problems.append(f"Gmail: {e}")
+    if settings.kitt_oauth_client_id and settings.kitt_oauth_client_secret:
+        ok.append("KITT session channel configured (GitHub OAuth app "
+                  f"{settings.kitt_oauth_client_id}); founder decisions accepted only from it")
+    else:
+        problems.append("BLOCKER: KITT session founder-decision channel not configured "
+                        "(KITT_OAUTH_CLIENT_ID / KITT_OAUTH_CLIENT_SECRET). G's approvals cannot be "
+                        "validated, so no founder decision will be accepted.")
     for role, cfg in settings.adapters.items():
         p = build_adapter(cfg).problems()
         if p:

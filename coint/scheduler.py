@@ -119,9 +119,11 @@ def founder_reminders(engine) -> list[str]:
             continue
         with db.tx() as c:
             c.execute("INSERT OR REPLACE INTO reminders VALUES (?,?,?,?)", (p["id"], p["stage"], p["current_cycle"], iso()))
-            engine.comment(c, p, f"🔔 Reminder @{engine.s.founder_login}: **Review Required** — `{p['id']}` is waiting "
-                                 f"for your decision at {p['stage']} (Version {p['current_cycle']}). Nothing will "
-                                 "proceed until you respond.")
+            kitt = engine.s.adapters["KITT"].github_login
+            engine.comment(c, p, f"🔔 Reminder{f' @{kitt}' if kitt else ''}: **Review Required** — `{p['id']}` is "
+                                 f"waiting for G's decision at {p['stage']} (Version {p['current_cycle']}). KITT: "
+                                 "present it to G in ChatGPT (`listPendingFounderReviews`). Nothing proceeds until "
+                                 "G decides through the authorized KITT session.")
         sent.append(p["id"])
     engine.dispatch_outbox()
     return sent

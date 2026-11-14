@@ -43,6 +43,8 @@ class Engine:
         self.gh = gh
         self.adapters = adapters or {r: build_adapter(c) for r, c in settings.adapters.items()}
         self.gmail = gmail
+        from .kitt_session import KittSessionVerifier
+        self.kitt_verifier = KittSessionVerifier(settings)
         self.worker_id = f"{socket.gethostname()}:{os.getpid()}"
 
     # ------------------------------------------------------------------ helpers
@@ -198,42 +200,47 @@ class Engine:
                           (iso(), project["id"], project["current_cycle"]))
             return "closure_confirmed"
         with self.db.tx() as c:
-            self.comment(c, project, "ℹ️ This issue was closed without `/delivery approve-close`. That is **not** "
+            self.comment(c, project, "ℹ️ This issue was closed without a validated founder approval. That is **not** "
                                      "approval: the project remains open in the automation and no final report "
-                                     "will be sent. G must use `/delivery approve-close <cycle> <delivery_sha>`.")
+                                     "will be sent. G must approve through KITT (`delivery_approve_close` via the "
+                                     "authorized KITT session).")
         record_audit_event(self.db, actor=actor, action="issue.closed_without_approval", outcome="ignored",
                            project_id=project["id"], cycle=project["current_cycle"])
         return "ignored_plain_close"
 
     # ------------------------------------------------------------------ commands
     def cmd_project_start(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "project start")
+        authorize_action(self.s, ctx["actor"], "project start", project, channel=ctx.get("channel", "github_comment"))
         if project:
             raise CommandRejected(f"Project {project['id']} already exists for this issue.")
         brief = cmd.payload
         pid = brief.get("project_id") or f"CI-{ctx['issue']:04d}"
         if c.execute("SELECT 1 FROM projects WHERE id=?", (pid,)).fetchone():
             raise CommandRejected(f"Project ID {pid} is already in use.")
-        base = self.gh.default_branch_head()
+        base = ctx.get("brief_sha")
+        if not base:
+            raise CommandRejected("Confirmed brief was not published to GitHub.")
         now = iso()
         c.execute("INSERT INTO projects(id, title, issue_number, branch, stage, status, brief_json, head_sha,"
                   " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
                   (pid, str(brief["title"]), ctx["issue"], self.s.project_branch_prefix + pid,
                    Stage.KITT_DRAFT.value, ProjectStatus.ACTIVE.value, dumps(brief), base, now, now))
         c.execute("INSERT INTO approvals(project_id, cycle, kind, decision, actor, sha, comment_id, comment_url,"
-                  " details, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                  (pid, 1, "brief", "confirmed", ctx["actor"], base, ctx["comment_id"], ctx["url"], dumps(brief), now))
+                  " details, channel, attestation_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                  (pid, 1, "brief", "confirmed", ctx["actor"], base, ctx["comment_id"], ctx["url"], dumps(brief),
+                   ctx.get("channel", "system"), ctx.get("attestation_id"), now))
         project = c.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone()
-        self.comment(c, project, f"✅ Project **{pid}** started from G's confirmed brief (cycle 1). "
-                                 f"Branch `{project['branch']}`. KITT is recording the brief and drafting the "
-                                 "project document.")
-        self.enqueue_stage(c, project, Stage.KITT_DRAFT, base, files=[],
-                           context={"brief": brief, "founder_brief_comment": ctx["url"]}, source_role="FOUNDER")
+        self.comment(c, project, f"✅ Project **{pid}** started from G's confirmed brief (cycle 1), submitted "
+                                 f"through the authorized KITT session. Brief: `projects/{pid}/brief/confirmed-brief.json`"
+                                 f" @ `{base}`. Branch `{project['branch']}`. KITT is drafting the project document.")
+        self.enqueue_stage(c, project, Stage.KITT_DRAFT, base,
+                           files=[{"path": "brief/confirmed-brief.json", "sha": base}],
+                           context={"brief": brief, "founder_decision": ctx["url"]}, source_role="FOUNDER")
         return pid
 
     def _require_stage(self, project, stage: Stage, cycle: int):
         if not project:
-            raise CommandRejected("No project exists for this issue. G must run `/project start` first.")
+            raise CommandRejected("No project exists for this issue. G must start it through the KITT session (project_start).")
         if project["status"] == ProjectStatus.CLOSED.value:
             raise CommandRejected("Project is closed.")
         if cycle != project["current_cycle"]:
@@ -243,9 +250,10 @@ class Engine:
 
     def _approval(self, c, project, kind, decision, ctx, sha, details) -> int:
         cur = c.execute("INSERT INTO approvals(project_id, cycle, kind, decision, actor, sha, comment_id, comment_url,"
-                        " details, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        " details, channel, attestation_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (project["id"], project["current_cycle"], kind, decision, ctx["actor"], sha,
-                         ctx["comment_id"], ctx["url"], dumps(details), iso()))
+                         ctx["comment_id"], ctx["url"], dumps(details), ctx.get("channel", "system"),
+                         ctx.get("attestation_id"), iso()))
         return cur.lastrowid
 
     def _complete_gate(self, c, project):
@@ -253,7 +261,7 @@ class Engine:
                   (iso(), project["id"]))
 
     def cmd_initial_approve(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "initial approve", project)
+        authorize_action(self.s, ctx["actor"], "initial approve", project, channel=ctx.get("channel", "github_comment"))
         self._require_stage(project, Stage.FOUNDER_INITIAL_REVIEW, cmd.args["cycle"])
         if cmd.args["sha"] != project["current_document_sha"]:
             raise CommandRejected(f"Stale document SHA. Current document version is {project['current_document_sha']}.")
@@ -265,7 +273,7 @@ class Engine:
         return "approved"
 
     def cmd_initial_changes(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "initial changes", project)
+        authorize_action(self.s, ctx["actor"], "initial changes", project, channel=ctx.get("channel", "github_comment"))
         self._require_stage(project, Stage.FOUNDER_INITIAL_REVIEW, cmd.args["cycle"])
         if cmd.args["sha"] != project["current_document_sha"]:
             raise CommandRejected(f"Stale document SHA. Current document version is {project['current_document_sha']}.")
@@ -280,7 +288,7 @@ class Engine:
         return "changes"
 
     def cmd_delivery_changes(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "delivery changes", project)
+        authorize_action(self.s, ctx["actor"], "delivery changes", project, channel=ctx.get("channel", "github_comment"))
         self._require_stage(project, Stage.FOUNDER_FINAL_REVIEW, cmd.args["cycle"])
         if cmd.args["sha"] != project["current_delivery_sha"]:
             raise CommandRejected(f"Stale delivery SHA. Current delivery is {project['current_delivery_sha']}.")
@@ -306,14 +314,14 @@ class Engine:
         return f"cycle{new_cycle}"
 
     def cmd_delivery_approve_close(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "delivery approve-close", project)
+        authorize_action(self.s, ctx["actor"], "delivery approve-close", project, channel=ctx.get("channel", "github_comment"))
         delivery = self.validate_founder_approval(c, project, cmd.args["cycle"], cmd.args["sha"], ctx["actor"])
         approval_id = self._approval(c, project, "delivery", "approve-close", ctx, cmd.args["sha"], cmd.payload)
         self.close_project(c, project, approval_id, delivery)
         return "closed"
 
     def cmd_project_status(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "project status", project)
+        authorize_action(self.s, ctx["actor"], "project status", project, channel=ctx.get("channel", "github_comment"))
         if not project:
             raise CommandRejected("No project exists for this issue.")
         rows = c.execute("SELECT role, task_type, state, input_sha, error FROM tasks WHERE project_id=? AND cycle=?"
@@ -329,23 +337,23 @@ class Engine:
         return "status"
 
     def cmd_project_pause(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "project pause", project)
+        authorize_action(self.s, ctx["actor"], "project pause", project, channel=ctx.get("channel", "github_comment"))
         if not project or project["status"] != ProjectStatus.ACTIVE.value:
             raise CommandRejected("Only an active project can be paused.")
         c.execute("UPDATE projects SET status='PAUSED', updated_at=? WHERE id=?", (iso(), project["id"]))
-        self.comment(c, project, "⏸️ Project paused by G. No new tasks will start until `/project resume`.")
+        self.comment(c, project, "⏸️ Project paused by G. No new tasks will start until G resumes through KITT.")
         return "paused"
 
     def cmd_project_resume(self, c, project, cmd, ctx):
-        authorize_action(self.s, ctx["actor"], "project resume", project)
+        authorize_action(self.s, ctx["actor"], "project resume", project, channel=ctx.get("channel", "github_comment"))
         if not project or project["status"] == ProjectStatus.CLOSED.value:
             raise CommandRejected("No resumable project.")
         if project["stage"] == Stage.FOUNDER_DECISION.value:
             reason = json.loads(project["blocked_reason"] or "{}")
             decisions = cmd.payload.get("decisions")
             if not isinstance(decisions, list) or not decisions:
-                raise CommandRejected("Project awaits G's decision. Use `/project resume` with a ```json block "
-                                      "containing a non-empty `decisions` list.")
+                raise CommandRejected("Project awaits G's decision: `project_resume` needs a non-empty "
+                                      "`decisions` list.")
             self._complete_gate(c, project)
             c.execute("UPDATE projects SET status='ACTIVE', revision_loops=0, assignment_rev=assignment_rev+1,"
                       " blocked_reason=NULL, updated_at=? WHERE id=?", (iso(), project["id"]))
@@ -470,23 +478,187 @@ class Engine:
                 f"(project_id, task_id, revision, source_role, files, expected_outputs, next_action, verdict).")
 
     def _founder_gate_comment(self, project, stage, sha, context) -> str:
-        cyc = project["current_cycle"]
-        head = f"🟡 **Review Required** — @{self.s.founder_login} · `{project['id']}` · Version {cyc}\n\n"
-        tree = f"{GITHUB_URL}/tree/{sha}/projects/{project['id']}"
+        """Founder review package routed to KITT, who presents it to G in ChatGPT."""
+        cyc, pid = project["current_cycle"], project["id"]
+        kitt = self.s.adapters["KITT"].github_login
+        head = (f"📨 **Review Required — founder review package for KITT to present to G**"
+                f"{f' (@{kitt})' if kitt else ''} · `{pid}` · Version {cyc}\n\n")
+        tree = f"{GITHUB_URL}/tree/{sha}/projects/{pid}"
+        tail = ("\n\nKITT: present this to G in ChatGPT. Submit only G's explicit decision, in G's own words, with "
+                "the `submitFounderDecision` action (G confirms the call). Pending items: `listPendingFounderReviews`. "
+                "A GitHub comment is **not** a decision and will be rejected.")
         if stage == Stage.FOUNDER_INITIAL_REVIEW:
-            return head + (f"KITT's project document is ready for your initial review.\n\n- Document version: `{sha}`\n"
-                           f"- Files: {tree}\n\nDecide with:\n```\n/initial approve {cyc} {sha}\n```\nor\n"
-                           f"```\n/initial changes {cyc} {sha}\n```\nfollowed by a ```json block "
-                           "`{\"changes\": [\"...\"]}`. No work proceeds until you decide.")
+            return head + (f"KITT's project document is ready for G's initial review.\n\n- Exact version: `{sha}`\n"
+                           f"- Files: {tree}\n- Decisions: `initial_approve` or `initial_changes` "
+                           f"(with `changes`), `project_id` `{pid}`, `cycle` {cyc}, `sha` `{sha}`.") + tail
         if stage == Stage.FOUNDER_FINAL_REVIEW:
             return head + (f"JARVIS submitted the delivery — **Awaiting Founder Final Review**.\n\n"
-                           f"- Exact delivery: {GITHUB_URL}/blob/{sha}/projects/{project['id']}/delivery/delivery.md\n"
-                           f"- Delivery SHA: `{sha}`\n\nApprove and close:\n```\n/delivery approve-close {cyc} {sha}\n```\n"
-                           f"or request changes (starts Version {cyc + 1}):\n```\n/delivery changes {cyc} {sha}\n```\n"
-                           "with ```json `{\"changes\": [...], \"route\": \"documents\"|\"development\"}`.")
-        return head + (f"A decision from G is required before work can continue: {context.get('reason', '')}\n\n"
-                       f"Reference version `{sha}`. Respond with `/project resume` and a ```json block "
-                       "`{\"decisions\": [\"...\"]}`.")
+                           f"- Exact delivery: {GITHUB_URL}/blob/{sha}/projects/{pid}/delivery/delivery.md\n"
+                           f"- Final report draft: {GITHUB_URL}/blob/{sha}/projects/{pid}/delivery/final-report.md\n"
+                           f"- Verification: {GITHUB_URL}/blob/{sha}/projects/{pid}/verification/verification-report.json\n"
+                           f"- Decisions: `delivery_approve_close` or `delivery_changes` (with `changes` and `route`), "
+                           f"`project_id` `{pid}`, `cycle` {cyc}, `sha` `{sha}`.") + tail
+        return head + (f"G's decision is required before work can continue: {context.get('reason', '')}\n\n"
+                       f"- Reference version `{sha}` · {tree}\n- Decision: `project_resume` with `decisions`.") + tail
+
+    # --------------------------------------------------- trusted founder channel
+    def pending_reviews(self, include_content: bool = True, max_chars: int = 20000) -> list[dict]:
+        """Founder questions / review packages awaiting G (served to KITT)."""
+        out = []
+        for p in self.db.all("SELECT * FROM projects WHERE status IN ('ACTIVE','PAUSED')"):
+            gate = self.db.one("SELECT * FROM tasks WHERE project_id=? AND state='WAITING_FOUNDER'"
+                               " ORDER BY created_at DESC LIMIT 1", p["id"])
+            if not gate:
+                continue
+            stage, sha = Stage(gate["stage"]), gate["input_sha"]
+            root = project_root(p["id"])
+            item = {"project_id": p["id"], "title": p["title"], "stage": stage.value, "cycle": p["current_cycle"],
+                    "sha": sha, "tracking_issue": f"{GITHUB_URL}/issues/{p['issue_number']}",
+                    "files_url": f"{GITHUB_URL}/tree/{sha}/{root}", "waiting_since": gate["created_at"]}
+            if stage == Stage.FOUNDER_INITIAL_REVIEW:
+                item["allowed_decisions"], paths = ["initial_approve", "initial_changes"], [
+                    "documents/project-document.md"]
+            elif stage == Stage.FOUNDER_FINAL_REVIEW:
+                item["allowed_decisions"], paths = ["delivery_approve_close", "delivery_changes"], [
+                    "delivery/delivery.md", "delivery/final-report.md", "verification/verification-report.json",
+                    "reviews/jarvis/finding-dispositions.json"]
+            else:
+                item["allowed_decisions"], paths = ["project_resume"], []
+                item["question"] = json.loads(gate["manifest"]).get("context", {}).get("reason", "")
+            if include_content:
+                item["documents"] = {}
+                for rel in paths:
+                    try:
+                        txt = self.gh.get_file(root + rel, sha)
+                    except Exception:  # noqa: BLE001
+                        txt = None
+                    if txt is not None:
+                        item["documents"][rel] = txt[:max_chars] + ("\n…[truncated]" if len(txt) > max_chars else "")
+            out.append(item)
+        return out
+
+    def founder_decision(self, att, req: dict) -> dict:
+        """Execute one explicit founder decision verified by KittSessionVerifier.
+
+        Returns {"status": http_status, "outcome": ..., "message": ...}."""
+        import hashlib
+        import re
+        from .commands import Command, ParseError, validate_brief, validate_changes, _cycle, _sha
+        from .kitt_session import DECISION_TYPES
+
+        did = str(req.get("decision_id") or "")
+        if not re.match(r"^[A-Za-z0-9-]{8,64}$", did):
+            return {"status": 400, "outcome": "rejected", "message": "decision_id must be 8-64 chars [A-Za-z0-9-]"}
+        rhash = hashlib.sha256(dumps(req).encode()).hexdigest()
+        prev = self.db.one("SELECT * FROM founder_decisions WHERE decision_id=?", did)
+        if prev:
+            if prev["request_hash"] != rhash:
+                return {"status": 409, "outcome": "rejected", "message": "decision_id reused with different content"}
+            return {"status": 200 if prev["outcome"] == "accepted" else 400, "outcome": prev["outcome"],
+                    "message": prev["detail"] or "", "duplicate": True}
+        dtype = req.get("decision_type")
+        action = DECISION_TYPES.get(dtype)
+        if not self.s.kitt_oauth_client_id or att.oauth_client_id != self.s.kitt_oauth_client_id:
+            record_audit_event(self.db, actor=att.github_login, action=f"founder_decision.{dtype}",
+                               outcome="rejected", detail={"decision_id": did, "reason": "untrusted session app"})
+            return {"status": 401, "outcome": "rejected", "message": "not the authorized KITT session"}
+
+        def record(outcome, detail, project_id=None):
+            with self.db.tx() as c:
+                c.execute("INSERT OR IGNORE INTO founder_decisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                          (did, str(dtype), project_id or req.get("project_id"), req.get("cycle"), req.get("sha"),
+                           dumps(req), rhash, att.github_login, att.github_user_id, att.oauth_client_id,
+                           att.token_fingerprint, outcome, detail, iso()))
+            record_audit_event(self.db, actor=att.github_login, action=f"founder_decision.{dtype}", outcome=outcome,
+                               project_id=project_id or req.get("project_id"), cycle=req.get("cycle"),
+                               version=req.get("sha"), detail={"decision_id": did, "channel": "kitt_session",
+                                                               "detail": detail})
+
+        def reject(msg, project=None):
+            record("rejected", msg, project["id"] if project else None)
+            if project:
+                with self.db.tx() as c:
+                    self.comment(c, project, f"⛔ Founder decision `{did}` ({dtype}) from the KITT session was "
+                                             f"rejected: {msg}", f"fdrej:{did}")
+                self.dispatch_outbox()
+            return {"status": 400, "outcome": "rejected", "message": msg}
+
+        if not action:
+            return reject(f"decision_type must be one of {sorted(DECISION_TYPES)}")
+        statement = str(req.get("founder_statement") or "").strip()
+        if not statement:
+            return reject("founder_statement (G's decision in G's own words) is required")
+        try:
+            args, payload = {}, {}
+            if dtype == "project_start":
+                payload = validate_brief(req.get("brief"))
+            else:
+                if dtype not in ("project_pause", "project_resume"):
+                    args = {"cycle": _cycle(str(req.get("cycle", ""))), "sha": _sha(str(req.get("sha", "")))}
+                for k in ("changes", "route", "decisions"):
+                    if k in req:
+                        payload[k] = req[k]
+                if dtype in ("initial_changes", "delivery_changes"):
+                    validate_changes(payload, need_route=(dtype == "delivery_changes"))
+        except ParseError as e:
+            return reject(str(e))
+        payload["founder_statement"] = statement
+
+        project = None
+        brief_sha = None
+        if dtype == "project_start":
+            pid = payload.get("project_id")
+            if pid and self.project(pid):
+                return reject(f"Project ID {pid} is already in use.")
+            issue = req.get("issue_number")
+            if issue is not None:
+                if self.project_by_issue(int(issue)):
+                    return reject("That tracking issue already has a project.")
+                issue = int(issue)
+            else:
+                issue = self.gh.create_issue(
+                    f"[Project] {payload['title']}",
+                    "Tracking issue created from G's confirmed brief submitted through the authorized KITT session."
+                    f"\n\nFounder decision `{did}`.\n\n```json\n{json.dumps(payload, indent=2)}\n```")
+            pid = pid or f"CI-{issue:04d}"
+            payload["project_id"] = pid
+            brief_sha = self.gh.commit_files(
+                self.s.project_branch_prefix + pid,
+                {f"projects/{pid}/brief/confirmed-brief.json": json.dumps(
+                    {**payload, "_coint": {"project_id": pid, "cycle": 1, "revision": 1, "decision_id": did,
+                                           "confirmed_by": att.github_login, "channel": "kitt_session"}}, indent=2) + "\n"},
+                f"[coint] {pid} confirmed brief from KITT session\n\nfounder decision: {did}")
+        else:
+            project = self.project(str(req.get("project_id") or ""))
+            if not project:
+                return reject("Unknown project_id.")
+            issue = project["issue_number"]
+
+        ctx = {"issue": issue, "comment_id": None, "url": f"kitt-session:{did}", "actor": att.github_login,
+               "channel": "kitt_session", "attestation_id": did, "brief_sha": brief_sha}
+        cmd = Command(action, args, payload)
+        handler = getattr(self, "cmd_" + action.replace(" ", "_").replace("-", "_"))
+        try:
+            with self.db.tx() as c:
+                result = handler(c, project, cmd, ctx)
+                project = project or c.execute("SELECT * FROM projects WHERE issue_number=?", (issue,)).fetchone()
+                record("accepted", result or "", project["id"])
+                self.comment(c, project, self._decision_record_comment(att, did, dtype, req, statement),
+                             f"fdok:{did}")
+        except CommandRejected as e:
+            return reject(str(e), project)
+        self.dispatch_outbox()
+        return {"status": 200, "outcome": "accepted", "message": result or "", "project_id": project["id"],
+                "decision_id": did}
+
+    @staticmethod
+    def _decision_record_comment(att, did, dtype, req, statement) -> str:
+        quoted = "\n".join("> " + line for line in statement.splitlines())
+        return (f"🧾 **Founder decision recorded** — `{dtype}` · decision `{did}`\n\n"
+                f"- Project `{req.get('project_id', '(new)')}` · cycle {req.get('cycle', 1)} · version "
+                f"`{req.get('sha', '—')}`\n- Channel: authorized KITT session (GitHub OAuth app "
+                f"`{att.oauth_client_id}`); identity verified as @{att.github_login} (id {att.github_user_id}); "
+                f"token fingerprint `{att.token_fingerprint[:12]}`\n- G's statement:\n{quoted}")
 
     # ---------------------------------------------------------------- execution
     def run_task(self, task_id: str) -> str:
@@ -532,7 +704,7 @@ class Engine:
             Q.block_task(self.db, task_id, f"{type(e).__name__}: {e}", actor=self.worker_id)
             with self.db.tx() as c:
                 self.comment(c, project, f"🚫 Task `{task_id}` ({task['role']} {task['task_type']}) is **BLOCKED**: "
-                                         f"{type(e).__name__}: {e}\n\nFix the cause, then G can `/project resume`.",
+                                         f"{type(e).__name__}: {e}\n\nFix the cause, then G can resume through KITT (`project_resume`).",
                              f"blocked:{task_id}:{task['attempts']}")
             return "blocked"
         finally:

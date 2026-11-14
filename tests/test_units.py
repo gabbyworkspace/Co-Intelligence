@@ -136,10 +136,12 @@ def test_comment_edited_webhook_ignored(h):
 def test_pause_blocks_claims_and_resume(h):
     h.start()
     assert h.say("/project pause", actor="kitt-bot") == "rejected"
-    assert h.say("/project pause") == "ok"
+    assert h.say("/project pause") == "rejected"          # GitHub comment, even from G
+    assert h.decide("project_pause", login="kitt-bot") == "rejected"
+    assert h.decide("project_pause") == "accepted"
     tid = h.tasks(task_type="create_document")[0]["id"]
     assert Q.claim_task(h.db, tid, "w", 60) is False
-    assert h.say("/project resume") == "ok"
+    assert h.decide("project_resume") == "accepted"
     h.run_all()
     assert h.project()["stage"] == "FOUNDER_INITIAL_REVIEW"
 
@@ -166,13 +168,14 @@ def test_initial_changes_revises_same_cycle(h):
     h.start()
     h.run_all()
     sha = h.project()["current_document_sha"]
-    h.say(f"/initial changes 1 {sha}\n```json\n" + json.dumps({"changes": ["add risks"]}) + "\n```")
+    assert h.decide("initial_changes", cycle=1, sha=sha) == "rejected"  # changes list required
+    assert h.decide("initial_changes", cycle=1, sha=sha, changes=["add risks"]) == "accepted"
     p = h.project()
     assert p["current_cycle"] == 1 and p["assignment_rev"] == 2 and p["stage"] == "KITT_DRAFT"
     h.run_all()
     p = h.project()
     assert p["stage"] == "FOUNDER_INITIAL_REVIEW" and p["current_document_sha"] != sha
-    assert h.say(f"/initial approve 1 {sha}") == "rejected"  # stale document
+    assert h.decide("initial_approve", cycle=1, sha=sha) == "rejected"  # stale document
 
 
 # ---------------------------------------------------------------- loop limit
@@ -189,9 +192,9 @@ def test_revision_loop_limit_blocks_and_requests_founder(make_h):
     assert p["stage"] == "FOUNDER_DECISION"
     assert len(h.tasks(task_type="finalize_documents")) == 3
     assert h.tasks(role="FOUNDER")[-1]["state"] == "WAITING_FOUNDER"
-    assert h.say("/project resume") == "rejected"  # decision required
+    assert h.decide("project_resume") == "rejected"  # decision required
     h.adapters["JARVIS"].script = None
-    assert h.say("/project resume\n```json\n" + json.dumps({"decisions": ["accept doc as-is"]}) + "\n```") == "ok"
+    assert h.decide("project_resume", decisions=["accept doc as-is"]) == "accepted"
     h.run_all()
     assert h.project()["stage"] == "FOUNDER_FINAL_REVIEW"
 
@@ -288,3 +291,72 @@ def test_reminder_once_per_day_and_never_advances(h):
 def test_invalid_input_unknown_commit(h):
     with pytest.raises(InvalidInput):
         h.gh.get_commit("e" * 40)
+
+
+# ---------------------------------------------------------------- trusted KITT session
+def test_kitt_comment_is_not_approval_evidence(h):
+    h.start()
+    h.run_all()
+    sha = h.project()["current_document_sha"]
+    claim = f"/initial approve 1 {sha}\n\nG approved this in our chat."
+    assert h.say(claim, actor="kitt-bot") == "rejected"
+    assert h.project()["stage"] == "FOUNDER_INITIAL_REVIEW"
+    assert any("not approval evidence" in b for _, b in h.gh.comments)
+
+
+def test_decision_bound_to_project_cycle_version(h):
+    h.start()
+    h.run_all()
+    sha = h.project()["current_document_sha"]
+    assert h.decide("initial_approve", cycle=2, sha=sha) == "rejected"
+    assert h.decide("initial_approve", cycle=1, sha="d" * 40) == "rejected"
+    assert h.decide("initial_approve", project_id="CI-NOPE", cycle=1, sha=sha) == "rejected"
+    assert h.decide("delivery_approve_close", cycle=1, sha=sha) == "rejected"  # wrong stage
+    assert h.decide("initial_approve", cycle=1, sha=sha, decision_id="same-id-123") == "accepted"
+    # replaying the id with different content is refused
+    res = h.engine.founder_decision(
+        __import__("coint.kitt_session", fromlist=["Attestation"]).Attestation(FOUNDER, 1, "kitt-app", "f" * 64),
+        {"decision_id": "same-id-123", "decision_type": "initial_changes", "project_id": "CI-TEST",
+         "cycle": 1, "sha": sha, "changes": ["x"], "founder_statement": "x"})
+    assert res["status"] == 409
+    rows = h.db.all("SELECT outcome FROM founder_decisions")
+    assert [r["outcome"] for r in rows].count("rejected") == 4
+
+
+def test_email_requires_session_backed_approval(h):
+    from coint.email_report import process_email_outbox
+    h.to_final_review()
+    assert h.decide("delivery_approve_close", cycle=1, sha=h.project()["current_delivery_sha"]) == "accepted"
+    with h.db.tx() as c:  # tamper: approval no longer backed by a session decision
+        c.execute("UPDATE approvals SET channel='github_comment' WHERE decision='approve-close'")
+    assert list(process_email_outbox(h.engine).values()) == ["blocked"]
+    assert h.gmail.sends == []
+
+
+def test_verifier_blocks_when_unconfigured_and_checks_app_and_user(tmp_path, monkeypatch):
+    from coint.errors import AuthError, PermissionDenied
+    from coint.kitt_session import KittSessionVerifier, SessionUnavailable
+    s = make_settings(str(tmp_path / "d"), kitt_oauth_client_id=None)
+    with pytest.raises(SessionUnavailable):
+        KittSessionVerifier(s).verify_founder("tok")
+    s = make_settings(str(tmp_path / "d"))
+    v = KittSessionVerifier(s)
+    monkeypatch.setattr(v, "_check_token", lambda t: {"app": {"client_id": "kitt-app"},
+                                                     "user": {"login": FOUNDER, "id": 9}})
+    att = v.verify_founder("tok")
+    assert att.github_login == FOUNDER and att.token_fingerprint != "tok"
+    monkeypatch.setattr(v, "_check_token", lambda t: {"app": {"client_id": "other"}, "user": {"login": FOUNDER}})
+    with pytest.raises(AuthError):
+        v.verify_founder("tok")
+    monkeypatch.setattr(v, "_check_token", lambda t: {"app": {"client_id": "kitt-app"}, "user": {"login": "kitt-bot"}})
+    with pytest.raises(PermissionDenied):
+        v.verify_founder("tok")
+
+
+def test_pending_reviews_routed_to_kitt(h):
+    h.to_final_review()
+    items = h.engine.pending_reviews()
+    assert len(items) == 1 and items[0]["stage"] == "FOUNDER_FINAL_REVIEW"
+    assert items[0]["sha"] == h.project()["current_delivery_sha"]
+    assert "delivery/final-report.md" in items[0]["documents"]
+    assert any("for KITT to present to G" in b and "@kitt-bot" in b for _, b in h.gh.comments)

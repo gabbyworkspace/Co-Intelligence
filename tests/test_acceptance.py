@@ -11,25 +11,40 @@ from conftest import BRIEF, Harness
 from fakes import FOUNDER, default_output
 
 
-def approve_close(h, sha=None, actor=FOUNDER, cycle=1):
+def approve_close(h, sha=None, actor=FOUNDER, cycle=1, client_id="kitt-app"):
     p = h.project()
-    return h.say(f"/delivery approve-close {cycle} {sha or p['current_delivery_sha']}", actor=actor)
+    return h.decide("delivery_approve_close", login=actor, client_id=client_id, cycle=cycle,
+                    sha=sha or p["current_delivery_sha"])
 
 
 # 1
 def test_unconfirmed_founder_discussion_does_not_start(h):
     assert h.say("Let's discuss a widget project. Thoughts?") == "not_command"
     unconfirmed = dict(BRIEF, confirmed=False)
-    assert h.say("/project start\n```json\n" + json.dumps(unconfirmed) + "\n```") == "rejected"
-    assert h.say("/project start") == "rejected"  # no brief
+    assert h.decide("project_start", brief=unconfirmed, issue_number=7) == "rejected"
+    assert h.decide("project_start", issue_number=7) == "rejected"  # no brief
+    assert h.decide("project_start", brief=BRIEF, statement="", issue_number=7) == "rejected"
+    # a GitHub comment can never start a project, even with a complete confirmed brief
+    assert h.say("/project start\n```json\n" + json.dumps(BRIEF) + "\n```") == "rejected"
     assert h.say("> /project start\n```json\n" + json.dumps(BRIEF) + "\n```") == "not_command"
     assert h.db.one("SELECT COUNT(*) n FROM projects")["n"] == 0
     assert h.db.one("SELECT COUNT(*) n FROM tasks")["n"] == 0
 
 
 def test_only_founder_can_start(h):
-    assert h.say("/project start\n```json\n" + json.dumps(BRIEF) + "\n```", actor="kitt-bot") == "rejected"
+    assert h.decide("project_start", login="kitt-bot", brief=BRIEF, issue_number=7) == "rejected"
     assert h.db.one("SELECT COUNT(*) n FROM projects")["n"] == 0
+
+
+def test_confirmed_brief_submitted_from_kitt_session_to_github(h):
+    assert h.decide("project_start", brief=dict(BRIEF), statement="Confirmed, start it.") == "accepted"
+    p = h.project()
+    assert p["issue_number"] == 101 and h.gh.issues[0][0] == "[Project] Widget"   # tracking issue created
+    brief = json.loads(h.gh.get_file("projects/CI-TEST/brief/confirmed-brief.json", p["head_sha"]))
+    assert brief["confirmed"] is True and brief["_coint"]["channel"] == "kitt_session"
+    ap = h.db.one("SELECT * FROM approvals WHERE kind='brief'")
+    assert ap["channel"] == "kitt_session" and ap["attestation_id"].startswith("dec-")
+    assert any("Founder decision recorded" in b and "Confirmed, start it." in b for _, b in h.gh.comments)
 
 
 # 2
@@ -141,9 +156,11 @@ def test_duplicate_events_produce_one_logical_task(h):
     ev = VerifiedEvent("abc-123-def", "issue_comment", "created", {"x": 1})
     assert persist_delivery(h.db, ev) is True
     assert persist_delivery(h.db, ev) is False
-    body = "/project start\n```json\n" + json.dumps(BRIEF) + "\n```"
-    assert h.say(body, comment_id=55) == "ok"
-    assert h.say(body, comment_id=55) == "duplicate"           # same comment via webhook + recovery
+    assert h.decide("project_start", brief=BRIEF, issue_number=7, decision_id="dup-decision-1") == "accepted"
+    assert h.decide("project_start", brief=BRIEF, issue_number=7, decision_id="dup-decision-1") == "accepted"
+    assert h.db.one("SELECT COUNT(*) n FROM projects")["n"] == 1
+    assert h.say("/project status", actor=FOUNDER, comment_id=55) == "ok"
+    assert h.say("/project status", actor=FOUNDER, comment_id=55) == "duplicate"  # webhook + recovery
     p = h.project()
     for _ in range(2):
         Q.enqueue_task(h.db, project_id=p["id"], cycle=1, stage="KITT_DRAFT", role="KITT",
@@ -185,7 +202,12 @@ def test_unauthorized_or_stale_founder_approval_rejected(h):
     assert approve_close(h, actor="jarvis-bot") == "rejected"
     assert approve_close(h, sha="a" * 40) == "rejected"
     assert approve_close(h, cycle=2) == "rejected"
-    assert h.say(f"/delivery approve-close 1 {p['current_delivery_sha'][:12]}") == "rejected"  # short SHA
+    assert approve_close(h, sha=p["current_delivery_sha"][:12]) == "rejected"  # short SHA
+    assert approve_close(h, client_id="some-other-app") == "rejected"  # not the KITT session app
+    # GitHub comments are never approval evidence: not from KITT, not even from G's own account
+    cmd = f"/delivery approve-close 1 {p['current_delivery_sha']}"
+    assert h.say(cmd, actor="kitt-bot") == "rejected"
+    assert h.say(cmd, actor=FOUNDER) == "rejected"
     assert h.project()["status"] == "ACTIVE"
     assert h.db.one("SELECT COUNT(*) n FROM closures")["n"] == 0
     assert h.db.one("SELECT COUNT(*) n FROM email_outbox")["n"] == 0
@@ -194,7 +216,7 @@ def test_unauthorized_or_stale_founder_approval_rejected(h):
 def test_stale_approval_after_new_cycle_rejected(h):
     h.to_final_review()
     old = h.project()["current_delivery_sha"]
-    h.say(f"/delivery changes 1 {old}\n```json\n" + json.dumps({"changes": ["x"], "route": "development"}) + "\n```")
+    h.decide("delivery_changes", cycle=1, sha=old, changes=["x"], route="development")
     h.run_all()
     assert h.project()["current_cycle"] == 2
     assert approve_close(h, sha=old, cycle=1) == "rejected"
@@ -205,8 +227,7 @@ def test_stale_approval_after_new_cycle_rejected(h):
 def test_requested_changes_create_new_cycle_without_email(h):
     h.to_final_review()
     p = h.project()
-    h.say(f"/delivery changes 1 {p['current_delivery_sha']}\n```json\n"
-          + json.dumps({"changes": ["rename button"], "route": "documents"}) + "\n```")
+    h.decide("delivery_changes", cycle=1, sha=p["current_delivery_sha"], changes=["rename button"], route="documents")
     p2 = h.project()
     assert p2["current_cycle"] == 2 and p2["stage"] == "KITT_APPLY_DECISIONS"
     assert all(t["state"] in ("COMPLETED", "SUPERSEDED") for t in h.tasks(cycle=1))
@@ -233,7 +254,7 @@ def test_ordinary_issue_closure_sends_no_report(h):
 def test_valid_development_approval_and_closure_enable_email(h):
     h.to_final_review()
     p = h.project()
-    assert approve_close(h) == "ok"
+    assert approve_close(h) == "accepted"
     assert h.gh.closed == [h.issue]
     assert h.project()["status"] == "CLOSED"
     res = process_email_outbox(h.engine)

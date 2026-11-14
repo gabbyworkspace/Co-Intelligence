@@ -47,6 +47,12 @@ def check_preconditions(engine, row) -> dict:
             approval["sha"] != closure["delivery_sha"] or approval["sha"] != project["current_delivery_sha"] or \
             approval["cycle"] != row["cycle"]:
         raise PermanentError("approval does not match the exact current delivery")         # 3
+    att = db.one("SELECT * FROM founder_decisions WHERE decision_id=?", approval["attestation_id"] or "")
+    if approval["channel"] != "kitt_session" or not att or att["outcome"] != "accepted" or \
+            att["decision_type"] != "delivery_approve_close" or att["sha"] != approval["sha"] or \
+            att["github_login"].lower() != engine.s.founder_login.lower() or \
+            att["oauth_client_id"] != engine.s.kitt_oauth_client_id:
+        raise PermanentError("approval is not backed by a validated founder decision from the KITT session")  # 3
     d = db.one("SELECT * FROM deliveries WHERE project_id=? AND cycle=? AND delivery_sha=?",
                row["project_id"], row["cycle"], closure["delivery_sha"])
     if not d or not d["development_complete"]:
@@ -96,7 +102,8 @@ COUNCIL OUTCOME AND FINDING DISPOSITIONS
 {disp}
 
 G'S APPROVAL AND CLOSURE
-  Approved by @{ap['actor']} at {ap['created_at']} — {ap['comment_url'] or 'comment #' + str(ap['comment_id'])}
+  Approved by G (@{ap['actor']}) at {ap['created_at']} via the authorized KITT session
+  Founder decision ID: {ap['attestation_id']}
   Closure recorded {cl['closed_at']}; tracking issue {GITHUB_URL}/issues/{p['issue_number']} closed {cl['issue_closed_at']}
 
 COMPLETION SUMMARY, DELIVERED SCOPE AND HANDOVER (final report)

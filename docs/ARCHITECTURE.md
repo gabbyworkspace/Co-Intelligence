@@ -10,6 +10,10 @@ GitHub ──webhook──▶ server.py ── verify_webhook ─▶ webhook_del
                            → validate_output → checkpoint → publish_output (commit) → complete_and_route
                          → dispatch_outbox (GitHub comments / issue close)
 
+KITT GPT Action (G signed in via GitHub OAuth) ─▶ /kitt/founder-decision ─▶ KittSessionVerifier
+   (token issued to KITT OAuth App? user == founder?) ─▶ founder_decisions + audit ─▶ same command handlers
+   GitHub comments can never perform founder actions.
+
 scheduler.py (single process): recover_pending_tasks · monitor_overdue_tasks ·
                                email_recovery (process_email_outbox) · founder_reminders
 ```
@@ -18,7 +22,7 @@ scheduler.py (single process): recover_pending_tasks · monitor_overdue_tasks ·
 
 | # | Stage | Role / task_type | Next |
 |---|---|---|---|
-| 1 | — (issue discussion) | — | `/project start` by G with confirmed brief |
+| 1 | — (G ⇄ KITT in ChatGPT) | — | `project_start` decision with confirmed brief via KITT session |
 | 2 | KITT_DRAFT | KITT `create_document` | FOUNDER_INITIAL_REVIEW |
 | 3 | FOUNDER_INITIAL_REVIEW | FOUNDER gate (WAITING_FOUNDER) | approve → 4 · changes → 2 (rev+1) |
 | 4 | KITT_APPLY_DECISIONS | KITT `apply_decisions` | 5 |
@@ -45,5 +49,6 @@ CANCELLED, SUPERSEDED.
 - **Checkpoints**: model output saved before publishing; published SHA saved
   before routing; retries resume from the last checkpoint.
 - **Routing is code**: models choose only a verdict from `models.ROUTES`.
+- **Founder authority**: only decisions verified from the authorized KITT session; email additionally requires the approval to reference an accepted `delivery_approve_close` founder decision for the same SHA.
 - **Closure email**: six preconditions, durable outbox, fixed Message-ID,
   SENDING → SENT | SEND_UNCERTAIN (reconcile) | PENDING (definite pre-send failure).

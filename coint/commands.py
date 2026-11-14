@@ -84,6 +84,29 @@ def _nonempty_list(payload: dict, key: str) -> list:
     return v
 
 
+def validate_brief(p) -> dict:
+    """Confirmed initial brief (shared by the KITT session channel and parser)."""
+    if not isinstance(p, dict):
+        raise ParseError("A confirmed brief object is required with fields: " + ", ".join(BRIEF_REQUIRED)
+                         + ", confirmed.")
+    missing = [k for k in BRIEF_REQUIRED if not p.get(k)]
+    if missing:
+        raise ParseError("Brief is incomplete. Missing: " + ", ".join(missing) + ".")
+    if p.get("confirmed") is not True:
+        raise ParseError("The brief must include `\"confirmed\": true` (G explicitly confirmed it).")
+    if "project_id" in p and not PROJECT_ID_RE.match(str(p["project_id"])):
+        raise ParseError("project_id must match ^[A-Z][A-Z0-9-]{2,31}$.")
+    for k in ("deliverables", "acceptance_criteria"):
+        _nonempty_list(p, k)
+    return dict(p)
+
+
+def validate_changes(p: dict, need_route: bool) -> None:
+    _nonempty_list(p, "changes")
+    if need_route and p.get("route") not in ("documents", "development"):
+        raise ParseError("Delivery changes require `route`: \"documents\" or \"development\".")
+
+
 def parse_command(body: str) -> Command | None:
     """Return a Command, None if the comment is not a command, or raise ParseError."""
     if not body:
@@ -102,20 +125,7 @@ def parse_command(body: str) -> Command | None:
         if sub == "start":
             if rest:
                 raise ParseError("Usage: /project start  (followed by a ```json brief block)")
-            p = _payload(body, idx)
-            if p is None:
-                raise ParseError("`/project start` requires a ```json brief block with fields: "
-                                 + ", ".join(BRIEF_REQUIRED) + ", confirmed.")
-            missing = [k for k in BRIEF_REQUIRED if not p.get(k)]
-            if missing:
-                raise ParseError("Brief is incomplete. Missing: " + ", ".join(missing) + ".")
-            if p.get("confirmed") is not True:
-                raise ParseError("The brief must include `\"confirmed\": true` to start automation.")
-            if "project_id" in p and not PROJECT_ID_RE.match(str(p["project_id"])):
-                raise ParseError("project_id must match ^[A-Z][A-Z0-9-]{2,31}$.")
-            for k in ("deliverables", "acceptance_criteria"):
-                _nonempty_list(p, k)
-            return Command("project start", {}, p)
+            return Command("project start", {}, validate_brief(_payload(body, idx)))
         if sub in ("status", "pause", "resume"):
             if rest:
                 raise ParseError(f"Usage: /project {sub}")
@@ -128,7 +138,7 @@ def parse_command(body: str) -> Command | None:
         args = {"cycle": _cycle(rest[0]), "sha": _sha(rest[1])}
         p = _payload(body, idx) or {}
         if sub == "changes":
-            _nonempty_list(p, "changes")
+            validate_changes(p, need_route=False)
         return Command(f"initial {sub}", args, p)
 
     if head == "/delivery":
@@ -137,9 +147,7 @@ def parse_command(body: str) -> Command | None:
         args = {"cycle": _cycle(rest[0]), "sha": _sha(rest[1])}
         p = _payload(body, idx) or {}
         if sub == "changes":
-            _nonempty_list(p, "changes")
-            if p.get("route") not in ("documents", "development"):
-                raise ParseError("`/delivery changes` requires `route`: \"documents\" or \"development\".")
+            validate_changes(p, need_route=True)
         return Command(f"delivery {sub}", args, p)
 
     # /handoff <role> <task_type> <cycle> <input_sha>

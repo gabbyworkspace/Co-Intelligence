@@ -20,10 +20,20 @@ def is_founder(settings: Settings, actor: str) -> bool:
     return actor.lower() == settings.founder_login.lower()
 
 
+FOUNDER_CHANNEL_MSG = ("Founder decisions are accepted only through the authorized KITT session "
+                       "(G decides in KITT's ChatGPT; KITT submits it with the `submitFounderDecision` action). "
+                       "A GitHub comment, including KITT's, is not approval evidence.")
+
+
 def authorize_action(settings: Settings, actor: str, action: str, project=None, *,
-                     task=None, dest_role: str | None = None) -> str:
-    """Return the role the actor acts as, or raise CommandRejected."""
+                     task=None, dest_role: str | None = None, channel: str = "github_comment") -> str:
+    """Return the role the actor acts as, or raise CommandRejected.
+
+    Founder actions require channel == 'kitt_session', i.e. an identity already
+    verified by KittSessionVerifier. GitHub comments can never satisfy this."""
     if action in FOUNDER_ONLY:
+        if channel != "kitt_session":
+            raise CommandRejected(FOUNDER_CHANNEL_MSG)
         if not is_founder(settings, actor):
             raise CommandRejected(f"@{actor} is not authorized for `{action}`. Only the configured founder may do this.")
         return "FOUNDER"

@@ -154,7 +154,27 @@ CREATE TABLE IF NOT EXISTS approvals (
     comment_id INTEGER,
     comment_url TEXT,
     details TEXT,
+    channel TEXT NOT NULL DEFAULT 'system',  -- kitt_session | system
+    attestation_id TEXT,                     -- founder_decisions.decision_id
     created_at TEXT NOT NULL
+);
+
+-- Every founder decision received from the authorized KITT session (accepted or not).
+CREATE TABLE IF NOT EXISTS founder_decisions (
+    decision_id TEXT PRIMARY KEY,
+    decision_type TEXT NOT NULL,
+    project_id TEXT,
+    cycle INTEGER,
+    sha TEXT,
+    request_json TEXT NOT NULL,
+    request_hash TEXT NOT NULL,
+    github_login TEXT NOT NULL,
+    github_user_id INTEGER NOT NULL,
+    oauth_client_id TEXT NOT NULL,
+    token_fingerprint TEXT NOT NULL,
+    outcome TEXT NOT NULL,           -- accepted | rejected
+    detail TEXT,
+    received_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS closures (

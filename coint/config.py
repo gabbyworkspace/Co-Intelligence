@@ -81,6 +81,10 @@ class Settings:
     gmail_client_secret: str | None
     gmail_refresh_token: str | None
     adapters: dict[str, AdapterConfig] = field(default_factory=dict)
+    kitt_oauth_client_id: str | None = None      # GitHub OAuth App used by KITT's GPT Action
+    kitt_oauth_client_secret: str | None = None
+    founder_user_id: str | None = None           # optional: pin G's numeric GitHub user id
+    public_base_url: str | None = None           # e.g. https://coint.example.com (for OpenAPI)
     lease_seconds: int = 300
     heartbeat_seconds: int = 60
     lease_grace_seconds: int = 120
@@ -151,6 +155,10 @@ def load_settings() -> Settings:
         gmail_client_secret=_env("GMAIL_CLIENT_SECRET"),
         gmail_refresh_token=_env("GMAIL_REFRESH_TOKEN"),
         adapters={r: _adapter(r) for r in ROLES},
+        kitt_oauth_client_id=_env("KITT_OAUTH_CLIENT_ID"),
+        kitt_oauth_client_secret=_env("KITT_OAUTH_CLIENT_SECRET"),
+        founder_user_id=_env("FOUNDER_GITHUB_USER_ID"),
+        public_base_url=_env("PUBLIC_BASE_URL"),
         lease_seconds=_int("LEASE_SECONDS", 300),
         heartbeat_seconds=_int("HEARTBEAT_SECONDS", 60),
         lease_grace_seconds=_int("LEASE_GRACE_SECONDS", 120),

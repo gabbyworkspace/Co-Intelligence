@@ -1,5 +1,4 @@
 import itertools
-import json
 import os
 import sys
 
@@ -44,6 +43,17 @@ class Harness:
         self.engine.dispatch_outbox()
         return out
 
+    def decide(self, dtype, login=FOUNDER, client_id="kitt-app", decision_id=None, **fields):
+        from coint.kitt_session import Attestation
+        att = Attestation(login, 4242, client_id, "f" * 64)
+        req = {"decision_id": decision_id or f"dec-{next(self._ids)}", "decision_type": dtype,
+               "founder_statement": fields.pop("statement", "G: yes, go ahead"), **fields}
+        if dtype != "project_start":
+            req.setdefault("project_id", "CI-TEST")
+        res = self.engine.founder_decision(att, req)
+        self.engine.dispatch_outbox()
+        return res["outcome"]
+
     def run_all(self, max_rounds=50):
         from coint import queue as Q
         for _ in range(max_rounds):
@@ -57,13 +67,13 @@ class Harness:
         return self.engine.project("CI-TEST")
 
     def start(self):
-        return self.say("/project start\n```json\n" + json.dumps(BRIEF) + "\n```")
+        return self.decide("project_start", brief=BRIEF, issue_number=self.issue)
 
     def to_final_review(self):
         self.start()
         self.run_all()
         p = self.project()
-        self.say(f"/initial approve 1 {p['current_document_sha']}")
+        self.decide("initial_approve", cycle=1, sha=p["current_document_sha"])
         self.run_all()
         return self.project()
 

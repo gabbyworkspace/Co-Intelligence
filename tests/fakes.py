@@ -17,7 +17,8 @@ def make_settings(db_path: str, **kw) -> Settings:
     s = Settings(founder_login=FOUNDER, db_path=db_path, webhook_secret="s3cret", github_app_id=None,
                  github_app_private_key=None, github_installation_id=None, github_repo_id=None,
                  app_bot_login="co-intel[bot]", gmail_client_id=None, gmail_client_secret=None,
-                 gmail_refresh_token=None, adapters=adapters, retry_delays_minutes=(0, 0, 0))
+                 gmail_refresh_token=None, adapters=adapters, retry_delays_minutes=(0, 0, 0),
+                 kitt_oauth_client_id="kitt-app", kitt_oauth_client_secret="x")
     for k, v in kw.items():
         setattr(s, k, v)
     return s
@@ -69,6 +70,11 @@ class FakeGitHub:
     def create_comment(self, issue, body):
         self.comments.append((issue, body))
         return {"id": len(self.comments), "html_url": f"https://github.com/x/issues/{issue}#c{len(self.comments)}"}
+
+    def create_issue(self, title, body):
+        self.issues = getattr(self, "issues", [])
+        self.issues.append((title, body))
+        return 100 + len(self.issues)
 
     def close_issue(self, issue):
         self.closed.append(issue)

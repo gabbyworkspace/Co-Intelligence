@@ -47,36 +47,72 @@ crontab in `deploy/crontab.example` (systemd units in `deploy/systemd/`).
 
 Run tests: `pip install -r requirements-dev.txt && pytest`.
 
-## 5. Using it (G)
+## 5. Founder decisions — through the authorized KITT session only
 
-Open one GitHub issue per project and discuss freely — nothing runs until G
-posts, as the **first line** of a new comment:
+G talks only to KITT in ChatGPT. There is no founder chatbot, founder email, or
+founder GitHub command. Founder decisions reach the automation through one
+trusted integration:
 
-````
-/project start
-```json
-{"title": "…", "objective": "…", "scope": ["…"], "deliverables": ["…"],
- "acceptance_criteria": ["…"], "constraints": ["…"], "confirmed": true,
- "project_id": "CI-0001"}
 ```
-````
+G ⇄ KITT (ChatGPT custom GPT) ──GPT Action, GitHub OAuth (G signs in)──▶ POST /kitt/founder-decision
+                                                                      └▶ GET  /kitt/pending
+```
 
-Then the automation posts **Review Required** comments containing the exact
-commands to copy:
+**Setup**
+1. Create a **GitHub OAuth App** dedicated to KITT's GPT Action (not the GitHub
+   App from §1). Put its client ID/secret in `KITT_OAUTH_CLIENT_ID` /
+   `KITT_OAUTH_CLIENT_SECRET_FILE`.
+2. In the KITT GPT → *Actions* → import `https://<host>/kitt/openapi.json`.
+   Authentication: OAuth · client ID/secret of that OAuth App · authorization URL
+   `https://github.com/login/oauth/authorize` · token URL
+   `https://github.com/login/oauth/access_token` · scope `read:user`.
+   Copy the ChatGPT callback URL into the OAuth App's callback URL.
+3. G uses the GPT and signs in with **G's own GitHub account** the first time.
+4. Add `prompts/kitt.md` → "Founder relay" to the GPT instructions.
 
-| Command | Who | Effect |
+**What is validated on every decision** (`coint/kitt_session.py`)
+- GitHub confirms the bearer token was issued to the KITT OAuth App
+  (`POST /applications/{client_id}/token`) — i.e. it comes from the authorized
+  KITT session — and that its user is `FOUNDER_GITHUB_USERNAME`
+  (and `FOUNDER_GITHUB_USER_ID` if set). The token is never stored; only a
+  SHA-256 fingerprint.
+- The action is marked consequential, so ChatGPT shows G the exact payload and
+  G must press **Confirm** before it is sent.
+- The decision is bound to `project_id`, `cycle` and the exact 40-char `sha`
+  G reviewed; stale versions, wrong stages and replays (`decision_id` reused
+  with different content) are rejected.
+- Every decision (accepted or rejected) is stored in `founder_decisions`,
+  written to the audit log, and posted as a **Founder decision recorded**
+  comment on the tracking issue.
+
+**Decision types**
+
+| decision_type | Required fields | Effect |
 |---|---|---|
-| `/initial approve <cycle> <document_sha>` (+ optional `{"decisions": […]}`) | G | KITT applies decisions → JARVIS |
-| `/initial changes <cycle> <document_sha>` + `{"changes": […]}` | G | KITT revises (same cycle, new revision) |
-| `/handoff <role> <task_type> <cycle> <input_sha>` + manifest | assigned agent | completes a `manual` task |
-| `/delivery changes <cycle> <delivery_sha>` + `{"changes": […], "route": "documents"\|"development"}` | G | starts Version N+1 |
-| `/delivery approve-close <cycle> <delivery_sha>` | G | validates, records approval + closure, closes issue, then final email |
-| `/project status` | G or agents | posts status table |
-| `/project pause` / `/project resume` | G | stop/continue; `resume` + `{"decisions": […]}` answers an escalation |
+| `project_start` | `brief` (title, objective, scope, deliverables, acceptance_criteria, constraints, `confirmed: true`), optional `issue_number` | creates tracking issue if needed, commits `brief/confirmed-brief.json`, starts KITT |
+| `initial_approve` | `project_id`, `cycle`, `sha` (+ optional `decisions`) | KITT applies decisions → JARVIS |
+| `initial_changes` | + `changes` | KITT revises (same cycle) |
+| `delivery_changes` | + `changes`, `route` (`documents`/`development`) | Version N+1 |
+| `delivery_approve_close` | `project_id`, `cycle`, `sha` | validates delivery, records approval + closure, closes issue → final email |
+| `project_pause` / `project_resume` | `project_id` (+ `decisions` when answering an escalation) | |
 
-SHAs must be full 40-character commit SHAs. Commands are parsed only from the
-first line of a newly created comment; quoted text, code blocks, edits and bot
-comments are never executed. Closing the issue by hand is **not** approval.
+All require `decision_id` (new UUID) and `founder_statement` (G's words, verbatim).
+
+**Founder review packages** are posted on the tracking issue as
+"📨 Review Required — founder review package for KITT to present to G"
+(mentioning KITT's GitHub login) and served with document contents at the exact
+version by `GET /kitt/pending` (`listPendingFounderReviews`). Daily reminders
+(09:17 Dubai) mention KITT. Nothing advances on a reminder.
+
+**Never approval evidence:** any GitHub comment (KITT's or anyone's, including
+G's own account), an issue close, a label, or an agent's claim. Such comments
+are rejected with an explanation.
+
+**If the integration is unavailable** (not configured, OAuth app credentials
+rejected), `/kitt/founder-decision` returns **503 with a `blocker`** and
+`coint doctor` reports it. There is no bypass.
+
+`/project status` remains available as a GitHub comment for G and the agents.
 
 ## 6. Handoff manifest (manual roles)
 
@@ -103,10 +139,10 @@ under `projects/<PROJECT_ID>/`.
 
 ## 8. Runbook
 
-- **Task BLOCKED** (auth/permission/invalid input): fix the cause, then G posts
-  `/project resume` (re-queues blocked tasks of the current cycle).
+- **Task BLOCKED** (auth/permission/invalid input): fix the cause, then G tells KITT to resume
+  (`project_resume` decision; re-queues blocked tasks of the current cycle).
 - **Task FAILED** after 1/5/15-minute retries: inspect `python -m coint audit
-  --project <ID>`; G can `/project resume` after fixing.
+  --project <ID>`; G can resume via KITT after fixing.
 - **Email BLOCKED**: read `email_outbox.last_error`; a precondition failed (it
   will never send until the cause is fixed and the row is set back to PENDING by
   an operator).
