@@ -21,7 +21,7 @@ Per brief v1.2 acceptance annex and dispositions A-3/C-A5/D-1/D-6/D-7. Compiled 
 | C13 | JARVIS | PASS | review package to baileys.resystem@gmail.com: Gmail 1a1db21d6d4a9786, 1a1db2585b715b19, PDF 1a1db28e7370e6e6 (ledger) | 2026-11-14 |
 | C14 | G/JARVIS/KITT | PASS (KITT record pending) | G: APPROVE AND CLOSE in JARVIS chat on v1 `7ca26ae`; `decisions/FLOW-TEST-001/v1.json`; supporting authenticated email 'close' 1a1db25f9ff6f717 | 2026-11-14T17:46:03Z |
 | C15 | JARVIS | PASS | `FLOW-TEST-001/CLOSURE-v1.md` (manual, engine not deployed) | 2026-11-14T17:46:03Z |
-| C16 | JARVIS | IN PROGRESS | final report to g@resystem.org | — |
+| C16 | JARVIS | PASS | final report to g@resystem.org, Gmail 1a1db2ade651c59b (accepted; inbox delivery unconfirmed) | 2026-11-14T17:46:31Z |
 | C17 | JARVIS automation | BLOCKED | engine (PR #1) not deployed; all pickups so far are manual | — |
 | C18 | JARVIS automation | BLOCKED | GRONK duplicate dispatch ~21:02 GST logged as a real duplicate event, not a PASS | — |
 | C19 | JARVIS automation | BLOCKED | no deployed 5-minute scan | — |
