@@ -1,0 +1,45 @@
+{
+  "package_id": "FLOW-TEST-001-C1-COUNCIL-02",
+  "supersedes_package": "council/FLOW-TEST-001/MANIFEST.json @ 57ed5a0454b2a69cdc82acf1bdab253417c053c5 (kept unchanged)",
+  "project_id": "FLOW-TEST-001",
+  "cycle": 1,
+  "purpose": "Re-freeze of the governing package after G-01/G-02/G-03/G-06 and controlling brief v1.2 (C04; dispositions A-7, B-4, C-10, C-A9, D-15). Governs the Step 8 build. Not re-dispatched to the council.",
+  "frozen_by": "JARVIS (scheduled run, manual pickup; coint/ automation NOT deployed)",
+  "frozen_at_utc": "2026-11-14T17:28:05Z",
+  "base_commit": "4b6fbe4367e3412c286badde5a94564bdffd2bc4",
+  "controlling_brief": "FLOW-TEST-001/INITIAL-BRIEF-v1.2.md",
+  "files": [
+    {"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.2.md", "blob": "b972cac0119263f00be4a90f4af2efeca1d5dbe9", "last_commit": "4b6fbe4367e3412c286badde5a94564bdffd2bc4", "role": "controlling build brief (G-01)"},
+    {"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.1.md", "blob": "b4146fd2305fd821bbafef5c8558e5075407c6b7", "last_commit": "c1eba1bb6764f2a370631f9748b625e40d18bac9", "role": "superseded revision (preserved)"},
+    {"path": "FLOW-TEST-001/INITIAL-BRIEF-v1.0.md", "blob": "92c52c92a3beef762f1ead135ba733db45948c38", "last_commit": "c237f42b98bff0ac109020283181e99c60d6d90d", "role": "founder-confirmed initial brief (preserved)"},
+    {"path": "FLOW-TEST-001/RECONCILIATION-c1.md", "blob": "0f455b3adf54d9a19138ffd0bcfb23cd9573bfba", "last_commit": "dac970213ab748940ffb9ad63b1774dac9a9fd5c", "role": "Step 7 reconciliation"},
+    {"path": "FLOW-TEST-001/FINDING-DISPOSITIONS-c1.json", "blob": "8162a7564e833de363a357c21cb99a3800ee7d9e", "last_commit": "dac970213ab748940ffb9ad63b1774dac9a9fd5c", "role": "finding dispositions"},
+    {"path": "decisions/FLOW-TEST-001/c1-council-G-decisions.json", "blob": "37a57a0fccd4ea92766c70f2cc236def64f539cf", "last_commit": "42f5c03b571638c00067663999adfb6f86651bb4", "role": "G decisions as reported by JARVIS"},
+    {"path": "decisions/FLOW-TEST-001/c1-council-G-decisions.KITT_RECORD.md", "blob": "15eb0180352dca9dc587d261720e132cfe55ecbd", "last_commit": "bdb9fcbce380c29928f2706f5ab2b734ffb78d26", "role": "KITT record of G-01/G-02/G-03/G-06"},
+    {"path": "council/FLOW-TEST-001/MANIFEST.json", "blob": "fb73cf2dd23e909734adb51abd7615370e77d002", "last_commit": "57ed5a0454b2a69cdc82acf1bdab253417c053c5", "role": "first council freeze (preserved)"},
+    {"path": "WORKFLOW.md", "blob": "53642d2192eb1add95ee21f473c161a7347d3883", "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24", "role": "governing workflow v2.0 (amendments C-3/A-5/C-4 pending, see FLOW-TEST-001/WORKFLOW-AMENDMENTS-c1.md)"},
+    {"path": "TEST-RESULTS.md", "blob": "eada8898c50fcd86a888c171be54ab01ea60388e", "last_commit": "591aacb2385cd1352950a5246b76d641ebf7cec8", "role": "KITT evidence ledger"},
+    {"path": "config/routing.yaml", "blob": "40a833cfa419d348a78c3558257173da7fa796f3", "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24", "role": "routing (governing)"},
+    {"path": "docs/FOUNDER_DECISION_VALIDATION.md", "blob": "d209c8ab81dceca9bb861d6d4b21194b550f1928", "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24", "role": "founder decision validation (governing)"},
+    {"path": "templates/review-package-email.md", "blob": "dea3e538321de71995e62fea9d3b1895df1f242c", "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24", "role": "Step 11 email template"},
+    {"path": "templates/closure-email.md", "blob": "34df5f88cc96d0cb5cafecbc78a8afa9adff2033", "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24", "role": "Step 12 email template"},
+    {"path": "ledger/emails.jsonl", "blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391", "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24", "role": "email ledger (empty)"}
+  ],
+  "council_return_reference": {
+    "pr": 3, "head_sha": "4718d75fee4a6e7896a8ced7f8a8ff87fb024f99", "merged": false,
+    "files": {
+      "council/FLOW-TEST-001/cycle-1/RETURN-TO-JARVIS.md": "539d09870c9aa32be89ad8065f1c9013578a7dc0",
+      "council/FLOW-TEST-001/cycle-1/review-A.md": "85bc2fcf8738484aadcf11ebaad222a03d96055a",
+      "council/FLOW-TEST-001/cycle-1/review-B.md": "b477383b0559fa309a92bcd2adacc800a034d932",
+      "council/FLOW-TEST-001/cycle-1/review-C.md": "03515706b2a42562229ca69d8742b1f8e7903e60",
+      "council/FLOW-TEST-001/cycle-1/review-D.md": "6b105c90dd510ab58496d38095217baf85f5a72a",
+      "council/FLOW-TEST-001/cycle-1/findings-index.md": "415ecbd73c05e5f92ee4a0575d6358db35d10215",
+      "council/FLOW-TEST-001/cycle-1/proposed-final-draft.md": "1566dd7c47a93abc067675eab1284b86757938e0",
+      "council/FLOW-TEST-001/cycle-1/conflict-decision-log.md": "2b06d30e47de4c9bb6aad6b7106a7fa27229cbd1",
+      "council/FLOW-TEST-001/cycle-1/g-decisions.md": "b4ae32688d080e21980b40ebe42a277022d8b472",
+      "council/FLOW-TEST-001/cycle-1/missing-info-blockers.md": "9f924c1aa00d062efca01d7d3fed9f89dfc704f5"
+    }
+  },
+  "g_decisions": {"resolved": ["G-01", "G-02", "G-03", "G-06"], "open_not_implemented": ["G-04", "G-05", "G-07", "G-08", "G-09", "G-10", "G-11"]},
+  "freeze_tag": "FLOW-TEST-001-c1-council-frozen (unsigned; signed tags are G-11)"
+}
