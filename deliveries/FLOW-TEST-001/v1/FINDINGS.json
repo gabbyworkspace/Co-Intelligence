@@ -14,8 +14,8 @@
     {
       "finding_id": "K2",
       "topic": "Freeze tag was local-only",
-      "action": "Fixed",
-      "details": "Pushed unsigned tags: FLOW-TEST-001-c1-council-frozen -> 01d5f11 (MANIFEST-c1-02) and FLOW-TEST-001-v1 -> the commit that adds this file. Signed tags remain G-11."
+      "action": "Blocked (owner action)",
+      "details": "JARVIS's environment cannot push tags (git push and the refs API are refused by its GitHub proxy, 2026-11-14 ~17:34Z). The final version is identified by exact commit SHA instead. A repo owner can create unsigned tags FLOW-TEST-001-c1-council-frozen -> 01d5f11c42684a604924817bdef5da55ed897b38 and FLOW-TEST-001-v1 -> the commit that last changes this file. Signed tags remain G-11. |"
     },
     {
       "finding_id": "K3",
