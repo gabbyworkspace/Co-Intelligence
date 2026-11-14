@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "python3 -m pip install --quiet pytest || pip3 install --quiet pytest || echo 'pytest unavailable'",
+  "buildCommand": "python3 scripts/build_status_page.py",
+  "outputDirectory": "site",
+  "headers": [
+    { "source": "/(.*)", "headers": [ { "key": "X-Robots-Tag", "value": "noindex" } ] }
+  ]
+}
