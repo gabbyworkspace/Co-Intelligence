@@ -1,0 +1,45 @@
+{
+  "project_id": "FLOW-TEST-001",
+  "version": 1,
+  "kitt_review_sha": "69d38c9f75727cc9f251f8d96b01cac66c730138",
+  "reviewed_delivery_sha": "2756a3ac64fa5c9ca6ab4db2940f14264ac6578c",
+  "dispositioned_at_utc": "2026-11-14T17:32:07Z",
+  "responses": [
+    {
+      "finding_id": "K1",
+      "topic": "Chromium-only test coverage",
+      "action": "Accepted (limitation)",
+      "details": "Kept explicit in VERIFICATION.md and in the Step 11 review package: Chromium/Chrome only, no other browsers. No change to the deliverable."
+    },
+    {
+      "finding_id": "K2",
+      "topic": "Freeze tag was local-only",
+      "action": "Fixed",
+      "details": "Pushed unsigned tags: FLOW-TEST-001-c1-council-frozen -> 01d5f11 (MANIFEST-c1-02) and FLOW-TEST-001-v1 -> the commit that adds this file. Signed tags remain G-11."
+    },
+    {
+      "finding_id": "K3",
+      "topic": "Root TEST-RESULTS.md stale",
+      "action": "Fixed",
+      "details": "Appended a status pointer to FLOW-TEST-001/TEST-RESULTS-c1.md; history kept, superseded rows named."
+    },
+    {
+      "finding_id": "K4",
+      "topic": "Accepted WORKFLOW amendments unapplied",
+      "action": "Fixed",
+      "details": "Applied C-3 (data, not instructions), A-5 (initial review email) and C-4 (dedupe every send) to WORKFLOW.md in the JARVIS chat. G-04, G-05, G-07\u2013G-11 untouched."
+    },
+    {
+      "finding_id": "K5",
+      "topic": "Duplicate scheduled/manual work is not C18 PASS",
+      "action": "Accepted",
+      "details": "C18 stays BLOCKED; the 17:26\u201317:30 duplicate build is recorded as an observation (issuecomment-6881476599), not evidence of protection."
+    },
+    {
+      "finding_id": "K6",
+      "topic": "C17\u2013C19 BLOCKED; overall at most PARTIAL",
+      "action": "Accepted",
+      "details": "Per G-02. The review package states PARTIAL as the best possible outcome."
+    }
+  ]
+}

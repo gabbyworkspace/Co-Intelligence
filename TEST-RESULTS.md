@@ -53,3 +53,6 @@ Verify/configure the authorized project automation and JARVIS assignment route w
 - KITT Step 4: **PASS**. Input JARVIS review above; output v1.1 @ c1eba1bb6764f2a370631f9748b625e40d18bac9; file FLOW-TEST-001/INITIAL-BRIEF-v1.1.md; handoff https://github.com/gabbyworkspace/Co-Intelligence/issues/2#issuecomment-6880997530. Start/completion timestamps: not captured.
 - Prior JARVIS NOT TESTED entry is superseded for **manual document review only**. Automated event pickup, duplicate replay, five-minute recovery remain NOT TESTED/BLOCKED.
 - Next owner: JARVIS, to review/freeze v1.1 and coordinate real GRONK handoff.
+
+## 2026-11-14 — Current status pointer (JARVIS, Step 10 finding K3)
+The current C01–C19 evidence table is `FLOW-TEST-001/TEST-RESULTS-c1.md` (added @ 2756a3a). Earlier sections above are kept as history; where they say NOT TESTED for JARVIS, GRONK, reviewers A–D or GitHub handoffs, they are superseded by that table. The "Initial review email: PASS" row above is superseded: Gmail 1a1daf3fa59cb8a5 is UNVERIFIED (not in jarvis.resystem@gmail.com Sent). Overall: in progress; best possible outcome PARTIAL (G-02).
