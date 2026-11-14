@@ -1,0 +1,31 @@
+# FLOW-TEST-002 — Controlling initial brief v1.1 (Cycle 1)
+
+**Status:** Founder-approved initial scope, KITT Step 4 clarification after JARVIS Step 3 review. This version is a self-contained operational specification. No material change to G-approved v0.1 scope. Source approval: G's exact answer **"yes"** to KITT's question **"Do you approve the FLOW-TEST-002 sample checklist brief as written, so I can hand it to JARVIS and continue the full workflow?"** in KITT chat, 2026-11-14. Initial v0.1 @ `5f15b66fadd644a4e49a1eeaa8bac689f61851f5`, approved v1.0 @ `21210b21afc4172612272cd68956372173dc4096`, JARVIS Step 3 review `FLOW-TEST-002/JARVIS-REVIEW-c1-step3.md` @ `0e64c692528db467817107a4007c3cad00469677`. v0.1/v1.0 preserved as historical records, superseded for implementation by this clarification. G has **not** approved a final delivery or partial closure for this project.
+
+## Deliverable and behavior
+
+One standalone HTML file `deliveries/FLOW-TEST-002/v1/index.html`, page title **Sample Project Checklist**. Exactly three initially unchecked native checkbox inputs in order, each with its matching visible and accessible label: **Review brief**, **Complete build**, **Verify handoffs**. Initial visible counter exactly **0 of 3 complete**. Any checkbox change recalculates counter, using the exact strings **0 of 3 complete**, **1 of 3 complete**, **2 of 3 complete**, **3 of 3 complete**. When all three are checked, show exactly **All sample tasks complete.** alongside the still-visible **3 of 3 complete** counter. Unchecking any item removes the completion message immediately and updates the counter. Rechecking restores it. No storage: reload resets all inputs and counter to 0/3 and hides the completion message. No external dependencies, resources, analytics, simulated agents or network calls.
+
+## Accessibility and security
+
+Each checkbox reachable by Tab in DOM/label order, toggleable by Space, visible keyboard focus; labels via matching `for`/`id` or wrapping labels; accessible names exactly the task text. Counter and completion announcement are in a polite live region (`aria-live="polite"`), with no duplicate announcement requirement. Text updates via `textContent`, not `innerHTML`. Use CSP meta `http-equiv="Content-Security-Policy"` with `default-src 'none'; script-src 'sha256-<actual script hash>'; style-src 'sha256-<actual style hash>'; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'`. The hash placeholders must be replaced with real base64 SHA-256 values for the exact inline script/style bytes; never use `unsafe-inline` or `unsafe-eval` for scripts. `frame-ancestors` cannot be enforced by meta and is out of scope.
+
+## Verification
+
+JARVIS tests from `file://` in headless Chromium with Playwright, recording browser version, UTC run time, exact delivery SHA, commands, exit status, test output and failures. Verify 0→1→2→3→2→3 counter transitions, completion visibility, reload reset, Tab/Space, labels and focus, CSP, zero requests except the local document, zero console warnings/errors, zero CSP violations. Other browsers not covered unless separately tested. No reported PASS without actual execution and evidence. Place `index.html`, `VERIFICATION.md`, `test-output.json` in `deliveries/FLOW-TEST-002/v1/`; C01–C19 evidence in `FLOW-TEST-002/TEST-RESULTS-c1.md` with actual actor, UTC, input/output SHA, IDs and limitations.
+
+## Real multi-agent workflow
+
+Step 1 G approved initial scope, Step 2 KITT handed off, Step 3 JARVIS reviewed, Step 4 this clarification returns to JARVIS for finding disposition. JARVIS freezes exact Council package SHA and manifest at Step 5; GRONK provides four genuinely independent reviewer outputs and findings in a PR under `council/FLOW-TEST-002/cycle-1/`, not automatically merged; JARVIS reconciles and handles material changes through a separate G decision; JARVIS develops/verifies, KITT reviews, JARVIS resolves findings and freezes final version by exact full SHA. Tag `FLOW-TEST-002-v1` is a repo-owner action if JARVIS cannot push it; record tag as pending, never claim it exists. For Step 11, JARVIS presents in authorized JARVIS chat when available or sends review email and validates a reply per `docs/FOUNDER_DECISION_VALIDATION.md`. G must separately approve exact final delivery version; KITT records exact decision; JARVIS performs closure only after all prerequisites. No agent may impersonate another agent or invent evidence.
+
+## Email routing and founder evidence
+
+Step 1 KITT initial review email to `baileys.resystem@gmail.com` remains **NOT VERIFIED / BLOCKED** until an authorized KITT sender returns a real Gmail message ID; Gmail acceptance is not inbox delivery. JARVIS Step 11 default is Baileys per WORKFLOW v2.0. **Founder G separately said exactly \"to g@resystem.org also\" in KITT chat on 2026-11-14**, immediately after discussing the Step 11 review email for FLOW-TEST-001; KITT recorded this in issue #2 comment `6881651326`. This instruction is **explicitly about FLOW-TEST-001**, not necessarily a global routing amendment. Therefore, for FLOW-TEST-002 do **not** presume G approved sending the Step 11 package to g@resystem.org as well; follow existing WORKFLOW default to Baileys unless G separately confirms the extra recipient for FLOW-TEST-002. Final closure email, only after valid closure, goes to `g@resystem.org` once, with ledger + Gmail Sent dedupe and verified Gmail acceptance evidence.
+
+## Automation / closure limitation
+
+PR #1 is OPEN and undeployed. C17 (automatic event pickup), C18 (duplicate replay suppression), C19 (five-minute recovery) remain BLOCKED without real production-like execution logs. FLOW-TEST-001's G-02 exception **does not carry over**. FLOW-TEST-002 closure requires either genuine C17–C19 evidence or a **separate, explicit G decision authorizing PARTIAL closure of FLOW-TEST-002**, plus all other Step 12 gates. Until then, do not close, claim PASS, send a closure report or create fake approval evidence. G may make this decision later; it is not required for Council freeze or development.
+
+## Scope boundary
+
+This document only makes the already approved behavior testable and clarifies operational gates; it does not approve new scope, new policies, permissions, spending, merges or deployments. Preserve version history and all real source references.
