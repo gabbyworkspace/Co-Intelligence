@@ -62,7 +62,7 @@ KITT does **not** present this delivery to G for final approval.
 4. After a successful send, JARVIS confirms in chat, word for word: "The review package has been emailed to baileys.resystem@gmail.com." The send is logged in `ledger/emails.jsonl` with the Gmail message ID and a timestamp.
 5. If sending fails, JARVIS reports the failure exactly as returned and does not claim the email was sent. Gmail API acceptance alone is never reported as confirmed inbox delivery.
 6. G reviews the delivery and discusses it with JARVIS in the chat.
-7. G explicitly chooses **APPROVE AND CLOSE** or **REQUEST CHANGES**, in the JARVIS chat or by replying to the review-package/confirmation email from g@resystem.org or baileys.resystem@gmail.com (checks in `docs/FOUNDER_DECISION_VALIDATION.md`). A reply that is not explicit (e.g. "close") is not a decision: JARVIS asks once for the exact wording.
+7. G explicitly chooses **APPROVE AND CLOSE** or **REQUEST CHANGES**, in the JARVIS chat or by replying to the review-package/confirmation email from g@resystem.org or baileys.resystem@gmail.com (checks in `docs/FOUNDER_DECISION_VALIDATION.md`). A short reply "close"/"approved" in the version's review thread counts as APPROVE AND CLOSE; any other vague reply gets one request for the exact wording.
 
 ### Approval recording
 

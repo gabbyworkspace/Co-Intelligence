@@ -1,0 +1,32 @@
+{
+  "project_id": "FLOW-TEST-001",
+  "version": "1",
+  "cycle": "1",
+  "delivery_tag": null,
+  "delivery_tag_note": "tags cannot be pushed from JARVIS's environment; the SHA identifies the version",
+  "delivery_sha": "7ca26aeb283b3a9b718e4fab549d23a4f5782eb5",
+  "decision": "APPROVE_AND_CLOSE",
+  "g_verbatim": "Either it replied from g@resystem.org or baileys.resystem@gmail.com. Also, you should consider it as a closed, or either you can reply it here or rework or closed anything. | JARVIS asked: decision on FLOW-TEST-001 v1 at 7ca26aeb283b3a9b718e4fab549d23a4f5782eb5? G selected: APPROVE AND CLOSE",
+  "g_verbatim_sha256": "2d7bbb76fa0da86bdeb892acda3df68c793e6dfab6b78c2a0f4a2bc1f3249297",
+  "requested_changes": [],
+  "source": "JARVIS chat (claude.ai), Co-Intelligence Project — G's explicit selection 'APPROVE AND CLOSE' on JARVIS's question naming FLOW-TEST-001 v1 and the full SHA",
+  "supporting_email": {
+    "from": "baileys.resystem@gmail.com",
+    "gmail_id": "1a1db25f9ff6f717",
+    "text": "close",
+    "auth": "dkim=pass header.i=@gmail.com; spf=pass; dmarc=pass header.from=gmail.com",
+    "in_reply_to": "JARVIS confirmation 1a1db2585b715b19"
+  },
+  "session_ref": "https://claude.ai/code/session_01XCx3Pq9eWYtge61PEr8oFe",
+  "decided_at_utc": "2026-11-14T17:46:03Z",
+  "validated_by": "JARVIS",
+  "checks": {
+    "source": true,
+    "explicit": true,
+    "exact_version": true,
+    "current": true,
+    "preconditions": true
+  },
+  "preconditions_detail": "Step 9 verification 14/14 (Chromium) + 10/10 (Chrome); KITT Step 10 review addressed (FINDINGS.md, K2 blocked: owner action); result PARTIAL accepted under G-02 (C17–C19 BLOCKED)",
+  "kitt_record": "PENDING — KITT to record this decision on GitHub (issue #2)"
+}
