@@ -1,0 +1,116 @@
+{
+  "package_id": "FLOW-TEST-002-C1-COUNCIL-01",
+  "project_id": "FLOW-TEST-002",
+  "cycle": 1,
+  "package": "council",
+  "frozen_by": "JARVIS (scheduled run, manual pickup; coint/ automation NOT deployed)",
+  "frozen_at_utc": "2026-11-14T19:09:27Z",
+  "base_commit": "86af3d3d7ceb92d5b815f42281d90a1d318b7409",
+  "freeze_commit": "the commit that adds this file (cited on issue #4)",
+  "controlling_brief": "FLOW-TEST-002/INITIAL-BRIEF-v1.1.md",
+  "files": [
+    {
+      "path": "FLOW-TEST-002/INITIAL-BRIEF-v1.1.md",
+      "blob": "4059eab71a1d9735cd7e035bca1c8896b2d8d2b1",
+      "last_commit": "86af3d3d7ceb92d5b815f42281d90a1d318b7409",
+      "role": "controlling brief"
+    },
+    {
+      "path": "FLOW-TEST-002/INITIAL-BRIEF-v1.0.md",
+      "blob": "d2f75b15671d4e3d2ff3bf49931d54569c26a4f6",
+      "last_commit": "21210b21afc4172612272cd68956372173dc4096",
+      "role": "founder-approved initial brief record (preserved history)"
+    },
+    {
+      "path": "FLOW-TEST-002/INITIAL-BRIEF-v0.1.md",
+      "blob": "faf696f0b487ae01b247b110ca9c71192f5ca55d",
+      "last_commit": "5f15b66fadd644a4e49a1eeaa8bac689f61851f5",
+      "role": "original draft (preserved history)"
+    },
+    {
+      "path": "FLOW-TEST-002/JARVIS-REVIEW-c1-step3.md",
+      "blob": "d99bfbbfc8edbba759fc0b402cf1b8b05db4d6c7",
+      "last_commit": "0e64c692528db467817107a4007c3cad00469677",
+      "role": "JARVIS Step 3 review"
+    },
+    {
+      "path": "WORKFLOW.md",
+      "blob": "addac25fabcfd681e396b74152b0189c4849d0b6",
+      "last_commit": "0d7283efdd26df31bf839772ef750cb26b0e6e8b",
+      "role": "governing workflow v2.0"
+    },
+    {
+      "path": "config/routing.yaml",
+      "blob": "f2fb775d8d1f6b5c850aeebbb88ab1d733856f1b",
+      "last_commit": "bbfd2ec88d4d3beae44a4a0b158b602307c37d47",
+      "role": "governing routing"
+    },
+    {
+      "path": "docs/FOUNDER_DECISION_VALIDATION.md",
+      "blob": "cccb7ab3ca36bae1bc90d1792c177aa9dab51c31",
+      "last_commit": "0d7283efdd26df31bf839772ef750cb26b0e6e8b",
+      "role": "governing founder decision validation"
+    },
+    {
+      "path": "templates/review-package-email.md",
+      "blob": "dea3e538321de71995e62fea9d3b1895df1f242c",
+      "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24",
+      "role": "Step 11 email template"
+    },
+    {
+      "path": "templates/closure-email.md",
+      "blob": "34df5f88cc96d0cb5cafecbc78a8afa9adff2033",
+      "last_commit": "d8459bc6a42c5c6d11b328593722599c4360cf24",
+      "role": "Step 12 email template"
+    },
+    {
+      "path": "FLOW-TEST-002/JARVIS-CHECK-c1-step4.md",
+      "blob": "(added in freeze commit)",
+      "last_commit": "freeze commit",
+      "role": "JARVIS Step 4 check of KITT revision"
+    }
+  ],
+  "governing_docs": [
+    "WORKFLOW.md",
+    "config/routing.yaml",
+    "docs/FOUNDER_DECISION_VALIDATION.md"
+  ],
+  "approved_requirements": [
+    "One standalone HTML file deliveries/FLOW-TEST-002/v1/index.html, title 'Sample Project Checklist'",
+    "Three initially unchecked native checkboxes in order: Review brief, Complete build, Verify handoffs",
+    "Counter strings exactly '0 of 3 complete' .. '3 of 3 complete'",
+    "At 3/3 show exactly 'All sample tasks complete.' alongside the counter; unchecking removes it immediately",
+    "No storage (reload resets to 0/3), no external resources, analytics, network or simulated agents",
+    "Keyboard/a11y: Tab order, Space toggles, visible focus, label association, aria-live polite; textContent updates",
+    "Meta CSP: default-src 'none'; script-src 'sha256-..'; style-src 'sha256-..'; img-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'"
+  ],
+  "acceptance_criteria": "INITIAL-BRIEF-v1.1.md 'Verification' section; C01-C19 evidence in FLOW-TEST-002/TEST-RESULTS-c1.md",
+  "open_questions": [
+    "J-08: closure needs real C17-C19 evidence or a separate explicit G decision authorising PARTIAL closure of FLOW-TEST-002 (Requires G's decision; not needed for council or build)",
+    "J-12: KITT Step 1 initial email to Baileys not verified (KITT substep, BLOCKED)",
+    "C17-C19 BLOCKED while PR #1 engine is undeployed",
+    "Step 11 review package recipient: Baileys only unless G separately confirms g@resystem.org for FLOW-TEST-002"
+  ],
+  "council": {
+    "coordinator": "GRONK",
+    "reviewers": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "independent": true,
+    "return": [
+      "review-A.md..review-D.md, each naming this package_id and the freeze commit SHA",
+      "findings-index.md",
+      "proposed-final-draft.md",
+      "conflict-decision-log.md",
+      "g-decisions.md",
+      "missing-info-blockers.md",
+      "RETURN-TO-JARVIS.md"
+    ],
+    "location": "council/FLOW-TEST-002/cycle-1/",
+    "delivery": "pull request from a cursor/<branch>, marked 'Do not merge'; then comment '→ JARVIS' on issue #4"
+  },
+  "tag": "none pushed (tags cannot be pushed from JARVIS environment); identify by freeze commit SHA"
+}
