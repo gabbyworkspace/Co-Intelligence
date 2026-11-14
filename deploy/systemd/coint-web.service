@@ -1,0 +1,14 @@
+[Unit]
+Description=Co-Intelligence webhook receiver + worker
+After=network-online.target
+
+[Service]
+User=coint
+WorkingDirectory=/opt/co-intelligence
+EnvironmentFile=/etc/co-intelligence/env
+ExecStart=/opt/co-intelligence/.venv/bin/python -m coint serve --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,5 @@
+# Alternative to `coint scheduler` (use ONE of the two, never both). All times UTC.
+*/5 * * * *        cd /opt/co-intelligence && .venv/bin/python -m coint run-job recover_pending_tasks
+2,17,32,47 * * * * cd /opt/co-intelligence && .venv/bin/python -m coint run-job monitor_overdue_tasks
+*/5 * * * *        cd /opt/co-intelligence && .venv/bin/python -m coint run-job email_recovery
+17 5 * * *         cd /opt/co-intelligence && .venv/bin/python -m coint run-job founder_reminders   # 09:17 Asia/Dubai

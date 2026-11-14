@@ -1,0 +1,20 @@
+# Two processes sharing one persistent volume:
+#   web       - verifies + durably queues GitHub webhooks, runs the async worker
+#   scheduler - the single scheduler (recovery, overdue, email recovery, reminders)
+# Secrets come from .env (never committed) or Docker secrets via *_FILE variables.
+services:
+  web:
+    build: .
+    env_file: .env
+    ports: ["8080:8080"]
+    volumes: ["coint-data:/data"]
+    restart: unless-stopped
+  scheduler:
+    build: .
+    env_file: .env
+    command: ["python", "-m", "coint", "scheduler"]
+    volumes: ["coint-data:/data"]
+    restart: unless-stopped
+    depends_on: [web]
+volumes:
+  coint-data:
