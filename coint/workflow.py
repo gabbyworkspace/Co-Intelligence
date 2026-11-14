@@ -13,7 +13,7 @@ from .adapters import AgentRequest, build_adapter
 from .audit import record_audit_event
 from .authz import authorize_action, is_founder
 from .commands import ParseError, parse_command
-from .config import COUNCIL_ROLES, GITHUB_URL, Settings
+from .config import COUNCIL_ROLES, FINAL_REPORT_TO, GITHUB_URL, REVIEW_PACKAGE_TO, Settings
 from .db import DB, dumps, iso
 from .errors import (CommandRejected, InvalidInput, PermanentError, StaleAssignment,
                      TransientError)
@@ -43,8 +43,9 @@ class Engine:
         self.gh = gh
         self.adapters = adapters or {r: build_adapter(c) for r, c in settings.adapters.items()}
         self.gmail = gmail
-        from .kitt_session import KittSessionVerifier
-        self.kitt_verifier = KittSessionVerifier(settings)
+        from .kitt_session import SessionVerifier
+        self.kitt_verifier = SessionVerifier(settings, "kitt_session")
+        self.jarvis_verifier = SessionVerifier(settings, "jarvis_session")
         self.worker_id = f"{socket.gethostname()}:{os.getpid()}"
 
     # ------------------------------------------------------------------ helpers
@@ -288,37 +289,75 @@ class Engine:
         return "changes"
 
     def cmd_delivery_changes(self, c, project, cmd, ctx):
+        """G -> REQUEST CHANGES in the JARVIS session. Takes effect once KITT records it."""
         authorize_action(self.s, ctx["actor"], "delivery changes", project, channel=ctx.get("channel", "github_comment"))
         self._require_stage(project, Stage.FOUNDER_FINAL_REVIEW, cmd.args["cycle"])
         if cmd.args["sha"] != project["current_delivery_sha"]:
             raise CommandRejected(f"Stale delivery SHA. Current delivery is {project['current_delivery_sha']}.")
-        self._approval(c, project, "delivery", "changes", ctx, cmd.args["sha"], cmd.payload)
-        self._complete_gate(c, project)
-        new_cycle = project["current_cycle"] + 1
-        c.execute("UPDATE projects SET current_cycle=?, assignment_rev=1, revision_loops=0, updated_at=? WHERE id=?",
-                  (new_cycle, iso(), project["id"]))
-        Q.supersede_open_tasks(self.db, project["id"], before_cycle=new_cycle, actor=ctx["actor"])
-        project = c.execute("SELECT * FROM projects WHERE id=?", (project["id"],)).fetchone()
-        stage = Stage.KITT_APPLY_DECISIONS if cmd.payload["route"] == "documents" else Stage.JARVIS_DEVELOPMENT
-        prev = self._latest_task(c, project["id"], new_cycle - 1, "develop_and_deliver")
-        files = json.loads(prev["manifest"])["files"] if prev else []
-        files = self._merge_files(files, json.loads(prev["output"] or "{}").get("_published_files", []),
-                                  cmd.args["sha"]) if prev else files
-        self.comment(c, project, f"🔁 G requested changes on cycle {new_cycle - 1} delivery `{cmd.args['sha']}`. "
-                                 f"**Version {new_cycle}** started; previous cycle preserved at that SHA. "
-                                 f"Routing to {STAGE_TASK[stage][0]}.")
-        self.enqueue_stage(c, project, stage, cmd.args["sha"], files=files,
-                           context={"founder_requested_changes": cmd.payload["changes"],
-                                    "previous_cycle": new_cycle - 1, "previous_delivery_sha": cmd.args["sha"],
-                                    "founder_comment": ctx["url"]}, source_role="FOUNDER")
-        return f"cycle{new_cycle}"
+        approval_id = self._approval(c, project, "delivery", "changes", ctx, cmd.args["sha"], cmd.payload)
+        self._hand_decision_to_kitt(c, project, ctx, "delivery_changes", cmd, approval_id)
+        return "changes_pending_kitt_record"
 
     def cmd_delivery_approve_close(self, c, project, cmd, ctx):
+        """G -> APPROVE AND CLOSE in the JARVIS session. Closure happens once KITT records it."""
         authorize_action(self.s, ctx["actor"], "delivery approve-close", project, channel=ctx.get("channel", "github_comment"))
-        delivery = self.validate_founder_approval(c, project, cmd.args["cycle"], cmd.args["sha"], ctx["actor"])
+        self.validate_founder_approval(c, project, cmd.args["cycle"], cmd.args["sha"], ctx["actor"])
         approval_id = self._approval(c, project, "delivery", "approve-close", ctx, cmd.args["sha"], cmd.payload)
-        self.close_project(c, project, approval_id, delivery)
-        return "closed"
+        self._hand_decision_to_kitt(c, project, ctx, "delivery_approve_close", cmd, approval_id)
+        return "approval_pending_kitt_record"
+
+    def _hand_decision_to_kitt(self, c, project, ctx, dtype, cmd, approval_id):
+        """JARVIS passes the validated decision reference to KITT for GitHub recording."""
+        self._complete_gate(c, project)
+        did = ctx["attestation_id"]
+        context = {"decision_id": did, "decision_type": dtype, "approval_id": approval_id,
+                   "cycle": cmd.args["cycle"], "delivery_sha": cmd.args["sha"],
+                   "founder_statement": cmd.payload.get("founder_statement", ""),
+                   "changes": cmd.payload.get("changes", []), "route": cmd.payload.get("route"),
+                   "record_file": f"approvals/founder-decision-{did}.md"}
+        self.enqueue_stage(c, project, Stage.FOUNDER_DECISION_RECORDING, cmd.args["sha"],
+                           files=self._delivery_files(c, project), context=context, source_role="JARVIS")
+
+    def _delivery_files(self, c, project) -> list:
+        prev = self._latest_task(c, project["id"], project["current_cycle"], "finalize_delivery") or \
+            self._latest_task(c, project["id"], project["current_cycle"], "develop_and_deliver")
+        if not prev:
+            return []
+        return self._merge_files(json.loads(prev["manifest"])["files"],
+                                 json.loads(prev["output"] or "{}").get("_published_files", []), prev["published_sha"])
+
+    def _apply_recorded_decision(self, c, project, task, record_sha):
+        """Effect of a founder decision after KITT has recorded it on GitHub."""
+        ctxd = json.loads(task["manifest"])["context"]
+        dec = c.execute("SELECT * FROM founder_decisions WHERE decision_id=?", (ctxd["decision_id"],)).fetchone()
+        approval = c.execute("SELECT * FROM approvals WHERE id=?", (ctxd["approval_id"],)).fetchone()
+        if not dec or dec["outcome"] != "accepted" or dec["channel"] != "jarvis_session" \
+                or dec["sha"] != project["current_delivery_sha"] or dec["cycle"] != project["current_cycle"] \
+                or not approval or approval["attestation_id"] != dec["decision_id"]:
+            raise InvalidInput("recorded decision does not match a validated JARVIS-session founder decision "
+                               "for the current delivery")
+        if ctxd["decision_type"] == "delivery_approve_close":
+            delivery = self.validate_founder_approval(c, project, dec["cycle"], dec["sha"], approval["actor"],
+                                                      stage=Stage.FOUNDER_DECISION_RECORDING)
+            self.close_project(c, project, approval["id"], delivery, record_sha=record_sha)
+            return
+        new_cycle = project["current_cycle"] + 1
+        files = self._delivery_files(c, project)
+        c.execute("UPDATE projects SET current_cycle=?, assignment_rev=1, revision_loops=0, updated_at=? WHERE id=?",
+                  (new_cycle, iso(), project["id"]))
+        Q.supersede_open_tasks(self.db, project["id"], before_cycle=new_cycle, actor="KITT")
+        c.execute("UPDATE email_outbox SET state='CANCELLED', updated_at=? WHERE project_id=? AND cycle<?"
+                  " AND kind='review_package' AND state IN ('PENDING','BLOCKED')", (iso(), project["id"], new_cycle))
+        project = c.execute("SELECT * FROM projects WHERE id=?", (project["id"],)).fetchone()
+        stage = Stage.KITT_APPLY_DECISIONS if ctxd["route"] == "documents" else Stage.JARVIS_DEVELOPMENT
+        self.comment(c, project, f"🔁 KITT recorded G's REQUEST CHANGES (decision `{dec['decision_id']}`, record "
+                                 f"`{record_sha}`) for Version {new_cycle - 1} delivery `{dec['sha']}`. "
+                                 f"**Version {new_cycle}** started; previous cycle preserved at that SHA. "
+                                 f"Routing to {STAGE_TASK[stage][0]}. No closure and no final report.")
+        self.enqueue_stage(c, project, stage, record_sha, files=files,
+                           context={"founder_requested_changes": ctxd["changes"], "previous_cycle": new_cycle - 1,
+                                    "previous_delivery_sha": dec["sha"], "founder_decision": dec["decision_id"]},
+                           source_role="KITT")
 
     def cmd_project_status(self, c, project, cmd, ctx):
         authorize_action(self.s, ctx["actor"], "project status", project, channel=ctx.get("channel", "github_comment"))
@@ -350,6 +389,10 @@ class Engine:
             raise CommandRejected("No resumable project.")
         if project["stage"] == Stage.FOUNDER_DECISION.value:
             reason = json.loads(project["blocked_reason"] or "{}")
+            want = reason.get("channel", "kitt_session")
+            if ctx.get("channel") != want:
+                raise CommandRejected(f"This escalation must be decided by G in the "
+                                      f"{'KITT' if want == 'kitt_session' else 'JARVIS'} session.")
             decisions = cmd.payload.get("decisions")
             if not isinstance(decisions, list) or not decisions:
                 raise CommandRejected("Project awaits G's decision: `project_resume` needs a non-empty "
@@ -463,6 +506,15 @@ class Engine:
         if role == "FOUNDER":
             self.comment(c, project, self._founder_gate_comment(project, stage, input_sha, context or {}),
                          f"gate:{tid}")
+        if stage == Stage.FOUNDER_FINAL_REVIEW:
+            # Step 11.3: JARVIS emails the review package (Review Required, never "Project Closed").
+            cyc = project["current_cycle"]
+            c.execute("INSERT OR IGNORE INTO email_outbox(email_key, kind, to_addr, delivery_sha, project_id, cycle,"
+                      " approval_id, state, rfc822_message_id, next_attempt_at, created_at, updated_at)"
+                      " VALUES (?, 'review_package', ?,?,?,?, NULL, 'PENDING', ?,?,?,?)",
+                      (f"review:{project['id']}|{cyc}|{input_sha}", REVIEW_PACKAGE_TO, input_sha, project["id"], cyc,
+                       f"<coint-review-{project['id']}-v{cyc}-{input_sha[:12]}@co-intelligence.resystem.org>",
+                       iso(), iso(), iso()))
         return tid
 
     def _assignment_comment(self, project, m) -> str:
@@ -477,33 +529,52 @@ class Engine:
                 f"```\n/handoff <next_role> {m['task_type']} {m['cycle']} <commit_sha>\n```\nwith a ```json manifest "
                 f"(project_id, task_id, revision, source_role, files, expected_outputs, next_action, verdict).")
 
+    @staticmethod
+    def gate_channel(stage: Stage, context: dict | None = None) -> str:
+        """Which founder session owns a gate (role summary)."""
+        if stage == Stage.FOUNDER_FINAL_REVIEW:
+            return "jarvis_session"
+        if stage == Stage.FOUNDER_DECISION:
+            return (context or {}).get("channel", "kitt_session")
+        return "kitt_session"
+
     def _founder_gate_comment(self, project, stage, sha, context) -> str:
-        """Founder review package routed to KITT, who presents it to G in ChatGPT."""
+        """Review notification on the tracking issue, addressed to the agent who presents it to G."""
         cyc, pid = project["current_cycle"], project["id"]
-        kitt = self.s.adapters["KITT"].github_login
-        head = (f"📨 **Review Required — founder review package for KITT to present to G**"
-                f"{f' (@{kitt})' if kitt else ''} · `{pid}` · Version {cyc}\n\n")
         tree = f"{GITHUB_URL}/tree/{sha}/projects/{pid}"
-        tail = ("\n\nKITT: present this to G in ChatGPT. Submit only G's explicit decision, in G's own words, with "
-                "the `submitFounderDecision` action (G confirms the call). Pending items: `listPendingFounderReviews`. "
-                "A GitHub comment is **not** a decision and will be rejected.")
+        if self.gate_channel(stage, context) == "jarvis_session":
+            who, login, where = "JARVIS", self.s.adapters["JARVIS"].github_login, "the JARVIS chat"
+            pending = "`/jarvis/pending`"
+        else:
+            who, login, where = "KITT", self.s.adapters["KITT"].github_login, "KITT's ChatGPT"
+            pending = "`listPendingFounderReviews`"
+        head = (f"📨 **Review Required — for {who} to present to G**{f' (@{login})' if login else ''} · "
+                f"`{pid}` · Version {cyc}\n\n")
+        tail = (f"\n\n{who}: present this to G in {where} ({pending}). Submit only G's explicit decision, in G's own "
+                f"words, through the authorized {who} session integration. A GitHub comment or agent statement is "
+                "**not** a decision and will be rejected.")
         if stage == Stage.FOUNDER_INITIAL_REVIEW:
             return head + (f"KITT's project document is ready for G's initial review.\n\n- Exact version: `{sha}`\n"
                            f"- Files: {tree}\n- Decisions: `initial_approve` or `initial_changes` "
                            f"(with `changes`), `project_id` `{pid}`, `cycle` {cyc}, `sha` `{sha}`.") + tail
         if stage == Stage.FOUNDER_FINAL_REVIEW:
-            return head + (f"JARVIS submitted the delivery — **Awaiting Founder Final Review**.\n\n"
+            return head + (f"KITT has reviewed the delivery and JARVIS has addressed the findings — "
+                           f"**Awaiting Founder Final Review** (G ↔ JARVIS).\n\n"
                            f"- Exact delivery: {GITHUB_URL}/blob/{sha}/projects/{pid}/delivery/delivery.md\n"
                            f"- Final report draft: {GITHUB_URL}/blob/{sha}/projects/{pid}/delivery/final-report.md\n"
                            f"- Verification: {GITHUB_URL}/blob/{sha}/projects/{pid}/verification/verification-report.json\n"
-                           f"- Decisions: `delivery_approve_close` or `delivery_changes` (with `changes` and `route`), "
-                           f"`project_id` `{pid}`, `cycle` {cyc}, `sha` `{sha}`.") + tail
+                           f"- KITT review: {GITHUB_URL}/blob/{sha}/projects/{pid}/reviews/kitt/delivery-review.md\n"
+                           f"- Review package email → {REVIEW_PACKAGE_TO} (status in `/jarvis/pending`)\n"
+                           f"- G chooses **APPROVE AND CLOSE** (`delivery_approve_close`) or **REQUEST CHANGES** "
+                           f"(`delivery_changes` with `changes` and `route`), `project_id` `{pid}`, `cycle` {cyc}, "
+                           f"`sha` `{sha}`. KITT then records the decision on GitHub.") + tail
         return head + (f"G's decision is required before work can continue: {context.get('reason', '')}\n\n"
                        f"- Reference version `{sha}` · {tree}\n- Decision: `project_resume` with `decisions`.") + tail
 
     # --------------------------------------------------- trusted founder channel
-    def pending_reviews(self, include_content: bool = True, max_chars: int = 20000) -> list[dict]:
-        """Founder questions / review packages awaiting G (served to KITT)."""
+    def pending_reviews(self, include_content: bool = True, max_chars: int = 20000,
+                        channel: str | None = None) -> list[dict]:
+        """Founder questions / review packages awaiting G, for the session that owns them."""
         out = []
         for p in self.db.all("SELECT * FROM projects WHERE status IN ('ACTIVE','PAUSED')"):
             gate = self.db.one("SELECT * FROM tasks WHERE project_id=? AND state='WAITING_FOUNDER'"
@@ -511,6 +582,10 @@ class Engine:
             if not gate:
                 continue
             stage, sha = Stage(gate["stage"]), gate["input_sha"]
+            gctx = json.loads(gate["manifest"]).get("context", {})
+            owner = self.gate_channel(stage, gctx)
+            if channel and owner != channel:
+                continue
             root = project_root(p["id"])
             item = {"project_id": p["id"], "title": p["title"], "stage": stage.value, "cycle": p["current_cycle"],
                     "sha": sha, "tracking_issue": f"{GITHUB_URL}/issues/{p['issue_number']}",
@@ -521,10 +596,23 @@ class Engine:
             elif stage == Stage.FOUNDER_FINAL_REVIEW:
                 item["allowed_decisions"], paths = ["delivery_approve_close", "delivery_changes"], [
                     "delivery/delivery.md", "delivery/final-report.md", "verification/verification-report.json",
-                    "reviews/jarvis/finding-dispositions.json"]
+                    "reviews/jarvis/finding-dispositions.json", "reviews/kitt/delivery-review.md",
+                    "reviews/jarvis/kitt-findings-response.json"]
+                em = self.db.one("SELECT * FROM email_outbox WHERE kind='review_package' AND project_id=? AND cycle=?"
+                                 " AND delivery_sha=?", p["id"], p["current_cycle"], sha)
+                item["review_package_email"] = {
+                    "to": REVIEW_PACKAGE_TO, "state": em["state"] if em else "NOT_QUEUED",
+                    "gmail_message_id": em["gmail_message_id"] if em else None,
+                    "accepted_at": em["accepted_at"] if em else None,
+                    "error": em["last_error"] if em and em["state"] != "SENT" else None,
+                    "chat_confirmation": (f"The review package has been emailed to {REVIEW_PACKAGE_TO}."
+                                          if em and em["state"] == "SENT" else None),
+                    "instruction": ("Say chat_confirmation verbatim only when state is SENT. Otherwise report the "
+                                    "state and error accurately; never claim it was sent."),
+                }
             else:
                 item["allowed_decisions"], paths = ["project_resume"], []
-                item["question"] = json.loads(gate["manifest"]).get("context", {}).get("reason", "")
+                item["question"] = gctx.get("reason", "")
             if include_content:
                 item["documents"] = {}
                 for rel in paths:
@@ -534,6 +622,7 @@ class Engine:
                         txt = None
                     if txt is not None:
                         item["documents"][rel] = txt[:max_chars] + ("\n…[truncated]" if len(txt) > max_chars else "")
+            item["owner_session"] = owner
             out.append(item)
         return out
 
@@ -544,7 +633,7 @@ class Engine:
         import hashlib
         import re
         from .commands import Command, ParseError, validate_brief, validate_changes, _cycle, _sha
-        from .kitt_session import DECISION_TYPES
+        from .kitt_session import CHANNEL_DECISIONS, DECISION_TYPES, channel_app
 
         did = str(req.get("decision_id") or "")
         if not re.match(r"^[A-Za-z0-9-]{8,64}$", did):
@@ -558,33 +647,39 @@ class Engine:
                     "message": prev["detail"] or "", "duplicate": True}
         dtype = req.get("decision_type")
         action = DECISION_TYPES.get(dtype)
-        if not self.s.kitt_oauth_client_id or att.oauth_client_id != self.s.kitt_oauth_client_id:
+        channel = att.channel
+        if channel not in CHANNEL_DECISIONS or not channel_app(self.s, channel)[0] or \
+                att.oauth_client_id != channel_app(self.s, channel)[0]:
             record_audit_event(self.db, actor=att.github_login, action=f"founder_decision.{dtype}",
                                outcome="rejected", detail={"decision_id": did, "reason": "untrusted session app"})
-            return {"status": 401, "outcome": "rejected", "message": "not the authorized KITT session"}
+            return {"status": 401, "outcome": "rejected", "message": "not an authorized founder session"}
 
         def record(outcome, detail, project_id=None):
             with self.db.tx() as c:
-                c.execute("INSERT OR IGNORE INTO founder_decisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                c.execute("INSERT OR IGNORE INTO founder_decisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                           (did, str(dtype), project_id or req.get("project_id"), req.get("cycle"), req.get("sha"),
                            dumps(req), rhash, att.github_login, att.github_user_id, att.oauth_client_id,
-                           att.token_fingerprint, outcome, detail, iso()))
+                           att.token_fingerprint, channel, outcome, detail, iso()))
             record_audit_event(self.db, actor=att.github_login, action=f"founder_decision.{dtype}", outcome=outcome,
                                project_id=project_id or req.get("project_id"), cycle=req.get("cycle"),
                                version=req.get("sha"), detail={"decision_id": did, "channel": "kitt_session",
-                                                               "detail": detail})
+                                                               "detail": detail, "session": channel})
 
         def reject(msg, project=None):
             record("rejected", msg, project["id"] if project else None)
             if project:
                 with self.db.tx() as c:
-                    self.comment(c, project, f"⛔ Founder decision `{did}` ({dtype}) from the KITT session was "
-                                             f"rejected: {msg}", f"fdrej:{did}")
+                    self.comment(c, project, f"⛔ Founder decision `{did}` ({dtype}) from the "
+                                             f"{channel.replace('_', ' ')} was rejected: {msg}", f"fdrej:{did}")
                 self.dispatch_outbox()
             return {"status": 400, "outcome": "rejected", "message": msg}
 
         if not action:
-            return reject(f"decision_type must be one of {sorted(DECISION_TYPES)}")
+            return reject(f"decision_type must be one of {sorted(CHANNEL_DECISIONS[channel])}")
+        if dtype not in CHANNEL_DECISIONS[channel]:
+            owner = "JARVIS" if channel == "kitt_session" else "KITT"
+            return reject(f"`{dtype}` cannot be decided in the {channel.replace('_', ' ')}; G makes this decision "
+                          f"with {owner}.", self.project(str(req.get("project_id") or "")))
         statement = str(req.get("founder_statement") or "").strip()
         if not statement:
             return reject("founder_statement (G's decision in G's own words) is required")
@@ -634,8 +729,8 @@ class Engine:
                 return reject("Unknown project_id.")
             issue = project["issue_number"]
 
-        ctx = {"issue": issue, "comment_id": None, "url": f"kitt-session:{did}", "actor": att.github_login,
-               "channel": "kitt_session", "attestation_id": did, "brief_sha": brief_sha}
+        ctx = {"issue": issue, "comment_id": None, "url": f"{channel}:{did}", "actor": att.github_login,
+               "channel": channel, "attestation_id": did, "brief_sha": brief_sha}
         cmd = Command(action, args, payload)
         handler = getattr(self, "cmd_" + action.replace(" ", "_").replace("-", "_"))
         try:
@@ -654,9 +749,15 @@ class Engine:
     @staticmethod
     def _decision_record_comment(att, did, dtype, req, statement) -> str:
         quoted = "\n".join("> " + line for line in statement.splitlines())
-        return (f"🧾 **Founder decision recorded** — `{dtype}` · decision `{did}`\n\n"
+        if att.channel == "jarvis_session":
+            title = (f"✅ **Founder decision validated (JARVIS session)** — `{dtype}` · decision `{did}` · "
+                     "passed to KITT for GitHub recording; no effect until KITT records it")
+        else:
+            title = f"🧾 **Founder decision recorded (KITT session)** — `{dtype}` · decision `{did}`"
+        sess = "JARVIS" if att.channel == "jarvis_session" else "KITT"
+        return (f"{title}\n\n"
                 f"- Project `{req.get('project_id', '(new)')}` · cycle {req.get('cycle', 1)} · version "
-                f"`{req.get('sha', '—')}`\n- Channel: authorized KITT session (GitHub OAuth app "
+                f"`{req.get('sha', '—')}`\n- Channel: authorized {sess} session (GitHub OAuth app "
                 f"`{att.oauth_client_id}`); identity verified as @{att.github_login} (id {att.github_user_id}); "
                 f"token fingerprint `{att.token_fingerprint[:12]}`\n- G's statement:\n{quoted}")
 
@@ -776,6 +877,8 @@ class Engine:
                     or not p.startswith(ALLOWED_PREFIXES):
                 raise InvalidInput(f"invalid output path {p!r}")
         required = list(EXPECTED_OUTPUTS.get(tt, []))
+        if tt == "record_founder_decision":
+            required = [json.loads(task["manifest"])["context"]["record_file"]]
         if tt == "council_review":
             required = [f"council/reviews/{task['role']}.md"]
             if task["input_sha"] not in files.get(required[0], ""):
@@ -796,7 +899,24 @@ class Engine:
             idx = _json(files, "council/drafts/findings-index.json")
             if not isinstance(idx.get("findings"), list):
                 raise InvalidInput("findings-index.json needs a `findings` list")
-        if tt == "develop_and_deliver":
+        if tt == "delivery_review":
+            kf = _json(files, "reviews/kitt/delivery-findings.json").get("findings")
+            if not isinstance(kf, list) or any(not isinstance(f, dict) or not f.get("id") for f in kf):
+                raise InvalidInput("delivery-findings.json needs a `findings` list of objects with `id`")
+        if tt == "record_founder_decision":
+            ctxd = json.loads(task["manifest"])["context"]
+            rec = files.get(ctxd["record_file"], "")
+            for needle in (ctxd["decision_id"], ctxd["decision_type"], ctxd["delivery_sha"]):
+                if needle not in rec:
+                    raise InvalidInput(f"KITT's decision record must cite {needle!r} (validated decision reference)")
+        if tt == "finalize_delivery":
+            resp = _json(files, "reviews/jarvis/kitt-findings-response.json").get("responses")
+            if not isinstance(resp, list):
+                raise InvalidInput("kitt-findings-response.json needs a `responses` list")
+            missing = self._kitt_findings_for(task) - {r.get("finding_id") for r in resp}
+            if missing:
+                raise InvalidInput(f"KITT findings not addressed: {sorted(missing)}")
+        if tt in ("develop_and_deliver", "finalize_delivery"):
             ver = _json(files, "verification/verification-report.json")
             if ver.get("status") not in ("passed", "failed", "partial") or not isinstance(ver.get("checks"), list):
                 raise InvalidInput("verification report needs status passed|failed|partial and a checks list")
@@ -815,6 +935,14 @@ class Engine:
             have = {d.get("finding_id") for d in disp}
             if findings - have:
                 raise InvalidInput(f"findings without disposition: {sorted(findings - have)}")
+
+    def _kitt_findings_for(self, task) -> set:
+        m = json.loads(task["manifest"])
+        f = next((f for f in m["files"] if f["path"] == "reviews/kitt/delivery-findings.json"), None)
+        if not f:
+            return set()
+        raw = self.gh.get_file(project_root(task["project_id"]) + f["path"], f["sha"]) or "{}"
+        return {x.get("id") for x in json.loads(raw).get("findings", [])}
 
     def _findings_for(self, task) -> set:
         m = json.loads(task["manifest"])
@@ -869,6 +997,10 @@ class Engine:
             self._record_handoff(c, task, "GRONK", output_sha, files, output, handoff_comment_id)
             self.collect_council_reviews(c, project, task["input_sha"])
             return
+        if tt == "record_founder_decision":
+            self._record_handoff(c, task, "JARVIS", output_sha, files, output, handoff_comment_id)
+            self._apply_recorded_decision(c, project, task, output_sha)
+            return
         next_stage = ROUTES[(tt, verdict)]
         if tt == "create_document":
             c.execute("UPDATE projects SET current_document_sha=? WHERE id=?", (output_sha, pid))
@@ -879,7 +1011,7 @@ class Engine:
             c.execute("UPDATE projects SET current_package_sha=? WHERE id=?", (output_sha, pid))
             files = [f for f in files if f["path"] in set(man["includes"]) | {"council/packages/manifest.json"}]
             files = [{"path": f["path"], "sha": output_sha} for f in files]
-        if tt == "develop_and_deliver":
+        if tt == "finalize_delivery":
             ver = json.loads(output["files"]["verification/verification-report.json"])
             disp = json.loads(output["files"]["reviews/jarvis/finding-dispositions.json"])["dispositions"]
             blockers = list(output.get("blockers") or []) + list(ver.get("unresolved_issues") or []) + \
@@ -893,7 +1025,8 @@ class Engine:
                           (tt == "freeze_council_package" and verdict == "feedback_not_addressed")
         if returns_to_kitt:
             if project["revision_loops"] >= self.s.max_revision_loops:
-                reason = {"kind": "loop_limit", "resume_stage": next_stage.value, "input_sha": output_sha,
+                reason = {"kind": "loop_limit", "resume_stage": next_stage.value, "channel": "kitt_session",
+                          "input_sha": output_sha,
                           "files": files, "context": {"jarvis_feedback": output.get("summary", "")},
                           "reason": f"KITT↔JARVIS revision loop limit ({self.s.max_revision_loops}) reached."}
                 c.execute("UPDATE projects SET blocked_reason=? WHERE id=?", (dumps(reason), pid))
@@ -907,7 +1040,7 @@ class Engine:
             c.execute("UPDATE projects SET revision_loops=revision_loops+1 WHERE id=?", (pid,))
         if next_stage == Stage.FOUNDER_DECISION:
             reason = {"kind": "development_decision", "resume_stage": Stage.JARVIS_DEVELOPMENT.value,
-                      "input_sha": output_sha, "files": files, "context": {},
+                      "channel": "jarvis_session", "input_sha": output_sha, "files": files, "context": {},
                       "reason": "JARVIS flagged findings that require G's decision (see "
                                 "reviews/jarvis/finding-dispositions.json)."}
             c.execute("UPDATE projects SET blocked_reason=? WHERE id=?", (dumps(reason), pid))
@@ -917,6 +1050,8 @@ class Engine:
                         "previous_verdict": verdict}
             if next_stage == Stage.KITT_FINALIZE:
                 next_ctx["jarvis_feedback_file"] = "reviews/jarvis/doc-review.md"
+            if next_stage == Stage.JARVIS_FINALIZE_DELIVERY:
+                next_ctx["kitt_review_files"] = ["reviews/kitt/delivery-review.md", "reviews/kitt/delivery-findings.json"]
             if "context" in m and "founder_requested_changes" in m["context"]:
                 next_ctx["founder_requested_changes"] = m["context"]["founder_requested_changes"]
         dest = STAGE_TASK[next_stage][0]
@@ -981,10 +1116,11 @@ class Engine:
         return True
 
     # ------------------------------------------------------- approval / closure
-    def validate_founder_approval(self, c, project, cycle: int, delivery_sha: str, actor: str):
+    def validate_founder_approval(self, c, project, cycle: int, delivery_sha: str, actor: str,
+                                  stage: Stage = Stage.FOUNDER_FINAL_REVIEW):
         if not is_founder(self.s, actor):
             raise CommandRejected("Only the configured founder may approve.")
-        self._require_stage(project, Stage.FOUNDER_FINAL_REVIEW, cycle)
+        self._require_stage(project, stage, cycle)
         if delivery_sha != project["current_delivery_sha"]:
             raise CommandRejected(f"Stale delivery SHA; the current delivery is {project['current_delivery_sha']}.")
         d = c.execute("SELECT * FROM deliveries WHERE project_id=? AND cycle=? AND delivery_sha=?",
@@ -1010,21 +1146,23 @@ class Engine:
             raise CommandRejected("Final report artifact missing at the delivery SHA.")
         return d
 
-    def close_project(self, c, project, approval_id: int, delivery):
+    def close_project(self, c, project, approval_id: int, delivery, record_sha: str | None = None):
         cycle = project["current_cycle"]
         c.execute("INSERT INTO closures(project_id, cycle, approval_id, delivery_sha, closed_at) VALUES (?,?,?,?,?)",
                   (project["id"], cycle, approval_id, delivery["delivery_sha"], iso()))
         c.execute("UPDATE projects SET status='CLOSED', stage='CLOSED', updated_at=? WHERE id=?", (iso(), project["id"]))
         self._complete_gate(c, project)
         Q.supersede_open_tasks(self.db, project["id"], actor="founder-close")
-        key = f"{project['id']}|{cycle}|{approval_id}"
-        c.execute("INSERT OR IGNORE INTO email_outbox(email_key, project_id, cycle, approval_id, state,"
-                  " rfc822_message_id, next_attempt_at, created_at, updated_at) VALUES (?,?,?,?, 'PENDING', ?,?,?,?)",
-                  (key, project["id"], cycle, approval_id,
+        key = f"final:{project['id']}|{cycle}|{approval_id}"
+        c.execute("INSERT OR IGNORE INTO email_outbox(email_key, kind, to_addr, delivery_sha, project_id, cycle,"
+                  " approval_id, state, rfc822_message_id, next_attempt_at, created_at, updated_at)"
+                  " VALUES (?, 'final_report', ?,?,?,?,?, 'PENDING', ?,?,?,?)",
+                  (key, FINAL_REPORT_TO, delivery["delivery_sha"], project["id"], cycle, approval_id,
                    f"<coint-{project['id']}-v{cycle}-a{approval_id}@co-intelligence.resystem.org>", iso(), iso(), iso()))
-        self.comment(c, project, f"🏁 G approved delivery `{delivery['delivery_sha']}` (Version {cycle}). "
-                                 "Approval and closure recorded; closing this tracking issue. JARVIS will send the "
-                                 "final report after closure validation.")
+        self.comment(c, project, f"🏁 KITT recorded G's APPROVE AND CLOSE for delivery `{delivery['delivery_sha']}` "
+                                 f"(Version {cycle})" + (f", record `{record_sha}`" if record_sha else "")
+                                 + ". Approval validated from the JARVIS session; closure recorded; closing this "
+                                   "tracking issue. JARVIS will send the final report after closure validation.")
         self._outbox(c, project["id"], "close_issue", {"issue": project["issue_number"], "cycle": cycle},
                      f"close:{project['id']}:{cycle}")
         record_audit_event(self.db, actor=self.s.founder_login, action="project.close", outcome="CLOSED",

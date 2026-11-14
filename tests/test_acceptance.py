@@ -11,10 +11,13 @@ from conftest import BRIEF, Harness
 from fakes import FOUNDER, default_output
 
 
-def approve_close(h, sha=None, actor=FOUNDER, cycle=1, client_id="kitt-app"):
+def approve_close(h, sha=None, actor=FOUNDER, cycle=1, client_id=None, channel=None):
+    """G chooses APPROVE AND CLOSE in the JARVIS session; KITT then records it on GitHub."""
     p = h.project()
-    return h.decide("delivery_approve_close", login=actor, client_id=client_id, cycle=cycle,
-                    sha=sha or p["current_delivery_sha"])
+    out = h.decide("delivery_approve_close", login=actor, client_id=client_id, channel=channel, cycle=cycle,
+                   sha=sha or p["current_delivery_sha"])
+    h.run_all()
+    return out
 
 
 # 1
@@ -81,7 +84,8 @@ def test_kitt_jarvis_required_sequence(h):
     assert order == [("KITT", "create_document"), ("FOUNDER", "founder_initial_review"),
                      ("KITT", "apply_decisions"), ("JARVIS", "doc_review"), ("KITT", "finalize_documents"),
                      ("JARVIS", "freeze_council_package"), ("GRONK", "council_dispatch"),
-                     ("GRONK", "council_draft"), ("JARVIS", "develop_and_deliver")]
+                     ("GRONK", "council_draft"), ("JARVIS", "develop_and_deliver"),
+                     ("KITT", "delivery_review"), ("JARVIS", "finalize_delivery")]
     assert h.project()["stage"] == "FOUNDER_FINAL_REVIEW"
 
 
@@ -203,14 +207,15 @@ def test_unauthorized_or_stale_founder_approval_rejected(h):
     assert approve_close(h, sha="a" * 40) == "rejected"
     assert approve_close(h, cycle=2) == "rejected"
     assert approve_close(h, sha=p["current_delivery_sha"][:12]) == "rejected"  # short SHA
-    assert approve_close(h, client_id="some-other-app") == "rejected"  # not the KITT session app
+    assert approve_close(h, client_id="some-other-app") == "rejected"  # not the JARVIS session app
+    assert approve_close(h, channel="kitt_session") == "rejected"      # final approval is G <-> JARVIS only
     # GitHub comments are never approval evidence: not from KITT, not even from G's own account
     cmd = f"/delivery approve-close 1 {p['current_delivery_sha']}"
     assert h.say(cmd, actor="kitt-bot") == "rejected"
     assert h.say(cmd, actor=FOUNDER) == "rejected"
     assert h.project()["status"] == "ACTIVE"
     assert h.db.one("SELECT COUNT(*) n FROM closures")["n"] == 0
-    assert h.db.one("SELECT COUNT(*) n FROM email_outbox")["n"] == 0
+    assert h.final_count() == 0
 
 
 def test_stale_approval_after_new_cycle_rejected(h):
@@ -227,17 +232,25 @@ def test_stale_approval_after_new_cycle_rejected(h):
 def test_requested_changes_create_new_cycle_without_email(h):
     h.to_final_review()
     p = h.project()
-    h.decide("delivery_changes", cycle=1, sha=p["current_delivery_sha"], changes=["rename button"], route="documents")
+    assert h.decide("delivery_changes", cycle=1, sha=p["current_delivery_sha"], changes=["rename button"],
+                    route="documents") == "accepted"
+    # validated in the JARVIS session, but no effect until KITT records it on GitHub
+    assert h.project()["stage"] == "FOUNDER_DECISION_RECORDING" and h.project()["current_cycle"] == 1
+    rec = h.tasks(task_type="record_founder_decision")[0]
+    assert rec["role"] == "KITT"
+    h.engine.run_task(rec["id"])
     p2 = h.project()
     assert p2["current_cycle"] == 2 and p2["stage"] == "KITT_APPLY_DECISIONS"
     assert all(t["state"] in ("COMPLETED", "SUPERSEDED") for t in h.tasks(cycle=1))
     h.run_all()
     assert h.project()["stage"] == "FOUNDER_FINAL_REVIEW"
     assert h.project()["current_delivery_sha"] != p["current_delivery_sha"]
-    assert h.db.one("SELECT COUNT(*) n FROM email_outbox")["n"] == 0
-    assert process_email_outbox(h.engine) == {}
-    assert h.gmail.sends == []
+    assert h.final_count() == 0
+    process_email_outbox(h.engine)  # only the Version 2 review package goes out
+    assert [m["Subject"].split("]")[0] for m in h.gmail.sends] == ["[Review Required"]
+    assert "Version 2" in h.gmail.sends[0]["Subject"] and h.gmail.sends[0]["To"] == "baileys.resystem@gmail.com"
     assert not any("Project Closed" in b for _, b in h.gh.comments)
+    assert h.db.one("SELECT COUNT(*) n FROM closures")["n"] == 0
 
 
 # 11
@@ -266,22 +279,23 @@ def test_valid_development_approval_and_closure_enable_email(h):
     assert m["Subject"] == "[Project Closed] CI-TEST — Widget — Version 1"
     text = m.get_content()
     assert p["current_delivery_sha"] in text and "F-001: accepted" in text and "AC1: passed" in text
-    row = h.db.one("SELECT * FROM email_outbox")
+    row = h.final_row()
     assert row["state"] == "SENT" and row["gmail_message_id"] and row["accepted_at"]
+    assert "Recorded on GitHub by KITT" in text
     assert process_email_outbox(h.engine) == {}  # never twice
 
 
 def test_email_waits_for_issue_close_and_blocks_on_failed_verification(make_h):
     def failing(role, tt, meta, inputs):
         out = default_output(role, tt, meta, inputs)
-        if tt == "develop_and_deliver":
+        if tt in ("develop_and_deliver", "finalize_delivery"):
             out["files"]["verification/verification-report.json"] = json.dumps(
                 {"development_complete": True, "status": "failed", "checks": [{"name": "AC1", "result": "failed"}]})
         return out
     h = make_h(scripts={"JARVIS": failing})
     h.to_final_review()
     assert approve_close(h) == "rejected"           # verification must pass first
-    assert h.db.one("SELECT COUNT(*) n FROM email_outbox")["n"] == 0
+    assert h.final_count() == 0
 
 
 # 13
@@ -290,10 +304,10 @@ def test_uncertain_email_outcome_is_reconciled_not_resent(make_h):
     h.to_final_review()
     approve_close(h)
     assert list(process_email_outbox(h.engine).values()) == ["uncertain"]
-    assert h.db.one("SELECT state FROM email_outbox")["state"] == "SEND_UNCERTAIN"
+    assert h.final_row()["state"] == "SEND_UNCERTAIN"
     assert list(process_email_outbox(h.engine).values()) == ["reconciled_sent"]
     assert len(h.gmail.sends) == 1
-    assert h.db.one("SELECT state FROM email_outbox")["state"] == "SENT"
+    assert h.final_row()["state"] == "SENT"
 
 
 def test_uncertain_not_found_waits_before_any_resend(make_h):
@@ -311,7 +325,7 @@ def test_definite_presend_failure_retries(make_h):
     h.to_final_review()
     approve_close(h)
     assert list(process_email_outbox(h.engine).values()) == ["retry"]
-    assert h.db.one("SELECT state FROM email_outbox")["state"] == "PENDING"
+    assert h.final_row()["state"] == "PENDING"
 
 
 # 14
@@ -325,10 +339,10 @@ def test_restart_recovery_preserves_state(tmp_path):
     h.restart()
     after = {t: h.db.one(f"SELECT COUNT(*) n FROM {t}")["n"] for t in before}
     assert after == before
-    assert h.db.one("SELECT state FROM email_outbox")["state"] == "SEND_UNCERTAIN"
+    assert h.final_row()["state"] == "SEND_UNCERTAIN"
     assert h.project()["status"] == "CLOSED"
     process_email_outbox(h.engine)
-    assert h.db.one("SELECT state FROM email_outbox")["state"] == "SENT"
+    assert h.final_row()["state"] == "SENT"
     assert len(h.gmail.sends) == 1
 
 
@@ -350,3 +364,97 @@ def test_unexpired_lease_not_stolen(tmp_path):
     assert Q.claim_task(h.db, tid, "live-worker", lease_seconds=300)
     assert recover_pending_tasks(h.engine)["leases"] == 0
     assert h.tasks(task_type="create_document")[0]["lease_owner"] == "live-worker"
+
+
+# ---------------------------------------------------------------- step 10-12 flow
+def test_step10_kitt_reviews_delivery_and_jarvis_addresses_findings(h):
+    h.to_final_review()
+    kr = h.tasks(task_type="delivery_review")[0]
+    fin = h.tasks(task_type="finalize_delivery")[0]
+    dev = h.tasks(task_type="develop_and_deliver")[0]
+    assert kr["role"] == "KITT" and kr["input_sha"] == dev["published_sha"]
+    assert fin["role"] == "JARVIS" and fin["input_sha"] == kr["published_sha"]
+    # the version G sees is JARVIS's finalized one, not the pre-review delivery
+    assert h.project()["current_delivery_sha"] == fin["published_sha"] != dev["published_sha"]
+    # KITT never received a founder gate for the final delivery
+    assert [t["task_type"] for t in h.tasks(role="FOUNDER")] == ["founder_initial_review", "founder_final_review"]
+    assert any("for JARVIS to present to G" in b for _, b in h.gh.comments)
+
+
+def test_finalize_must_answer_every_kitt_finding(make_h):
+    def ignores(role, tt, meta, inputs):
+        out = default_output(role, tt, meta, inputs, {})
+        if tt == "finalize_delivery":
+            out["files"]["reviews/jarvis/kitt-findings-response.json"] = json.dumps({"responses": []})
+        return out
+    h = make_h(scripts={"JARVIS": ignores})
+    h.to_final_review(send_review=False)
+    t = h.tasks(task_type="finalize_delivery")[0]
+    assert t["state"] == "BLOCKED" and "K-1" in t["error"]
+    assert h.project()["stage"] == "JARVIS_FINALIZE_DELIVERY"
+
+
+def test_step11_review_package_emailed_to_baileys(h):
+    h.to_final_review()
+    assert len(h.review_sends) == 1
+    m = h.review_sends[0]
+    p = h.project()
+    assert m["To"] == "baileys.resystem@gmail.com" and m["From"] == "jarvis.resystem@gmail.com" and m["Cc"] is None
+    assert m["Subject"].startswith("[Review Required] CI-TEST — Widget — Version 1")
+    body = m.get_content()
+    assert p["current_delivery_sha"] in body and "AC1: passed" in body and "demo only" in body
+    assert "No email reply is required" in body and "Project Closed" not in m["Subject"]
+    item = h.engine.pending_reviews(channel="jarvis_session")[0]
+    assert item["review_package_email"]["state"] == "SENT"
+    assert item["review_package_email"]["chat_confirmation"] == \
+        "The review package has been emailed to baileys.resystem@gmail.com."
+    assert h.engine.pending_reviews(channel="kitt_session") == []   # final review is not KITT's to present
+
+
+def test_step11_review_package_failure_reported_not_confirmed(make_h):
+    from coint.errors import AuthError
+    h = make_h()
+    h.to_final_review(send_review=False)
+
+    def denied(raw):
+        raise AuthError("Gmail 401 on send")
+    h.gmail.send_raw = denied
+    assert list(process_email_outbox(h.engine).values()) == ["blocked"]
+    em = h.engine.pending_reviews(channel="jarvis_session")[0]["review_package_email"]
+    assert em["state"] == "BLOCKED" and "401" in em["error"] and em["chat_confirmation"] is None
+    assert any("Review package email" in b and "not sent" in b for _, b in h.gh.comments)
+
+
+def test_kitt_record_required_before_closure_and_must_cite_decision(make_h):
+    def lazy_record(role, tt, meta, inputs):
+        if tt == "record_founder_decision":
+            return {"verdict": "recorded", "input_sha": meta["input_sha"], "summary": "G approved, trust me",
+                    "files": {"approvals/note.md": "approved"}, "next_action": "close"}
+        return default_output(role, tt, meta, inputs, {})
+    h = make_h(scripts={"KITT": lazy_record})
+    h.adapters["KITT"].script = None
+    h.to_final_review()
+    h.adapters["KITT"].script = lazy_record
+    assert h.decide("delivery_approve_close", cycle=1, sha=h.project()["current_delivery_sha"]) == "accepted"
+    assert h.project()["status"] == "ACTIVE" and h.project()["stage"] == "FOUNDER_DECISION_RECORDING"
+    h.run_all()
+    rec = h.tasks(task_type="record_founder_decision")[0]
+    assert rec["state"] == "BLOCKED"            # an agent statement without the validated reference is refused
+    assert h.project()["status"] == "ACTIVE" and h.final_count() == 0 and h.gh.closed == []
+
+
+def test_jarvis_session_cannot_make_initial_decisions(h):
+    h.start()
+    h.run_all()
+    sha = h.project()["current_document_sha"]
+    assert h.decide("initial_approve", channel="jarvis_session", cycle=1, sha=sha) == "rejected"
+    assert h.decide("project_start", channel="jarvis_session", brief=BRIEF) == "rejected"
+    assert h.project()["stage"] == "FOUNDER_INITIAL_REVIEW"
+
+
+def test_approval_gate_pauses_when_jarvis_session_unavailable(make_h):
+    h = make_h(jarvis_oauth_client_id=None, jarvis_oauth_client_secret=None)
+    h.to_final_review()
+    assert approve_close(h) == "rejected"
+    assert h.project()["stage"] == "FOUNDER_FINAL_REVIEW" and h.project()["status"] == "ACTIVE"
+    assert h.tasks(task_type="record_founder_decision") == [] and h.final_count() == 0

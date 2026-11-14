@@ -327,7 +327,9 @@ def test_email_requires_session_backed_approval(h):
     from coint.email_report import process_email_outbox
     h.to_final_review()
     assert h.decide("delivery_approve_close", cycle=1, sha=h.project()["current_delivery_sha"]) == "accepted"
-    with h.db.tx() as c:  # tamper: approval no longer backed by a session decision
+    h.run_all()  # KITT records it -> closure
+    assert h.project()["status"] == "CLOSED"
+    with h.db.tx() as c:  # tamper: approval no longer backed by a JARVIS-session decision
         c.execute("UPDATE approvals SET channel='github_comment' WHERE decision='approve-close'")
     assert list(process_email_outbox(h.engine).values()) == ["blocked"]
     assert h.gmail.sends == []
@@ -357,6 +359,9 @@ def test_pending_reviews_routed_to_kitt(h):
     h.to_final_review()
     items = h.engine.pending_reviews()
     assert len(items) == 1 and items[0]["stage"] == "FOUNDER_FINAL_REVIEW"
+    assert items[0]["owner_session"] == "jarvis_session"
     assert items[0]["sha"] == h.project()["current_delivery_sha"]
     assert "delivery/final-report.md" in items[0]["documents"]
-    assert any("for KITT to present to G" in b and "@kitt-bot" in b for _, b in h.gh.comments)
+    assert "reviews/kitt/delivery-review.md" in items[0]["documents"]
+    assert any("for KITT to present to G" in b and "@kitt-bot" in b for _, b in h.gh.comments)   # initial review
+    assert any("for JARVIS to present to G" in b and "@jarvis-bot" in b for _, b in h.gh.comments)

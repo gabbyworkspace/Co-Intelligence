@@ -46,13 +46,17 @@ def doctor(settings) -> int:
         (ok if addr == FINAL_REPORT_FROM else problems).append(f"Gmail authorized as {addr}")
     except Exception as e:  # noqa: BLE001
         problems.append(f"Gmail: {e}")
-    if settings.kitt_oauth_client_id and settings.kitt_oauth_client_secret:
-        ok.append("KITT session channel configured (GitHub OAuth app "
-                  f"{settings.kitt_oauth_client_id}); founder decisions accepted only from it")
-    else:
-        problems.append("BLOCKER: KITT session founder-decision channel not configured "
-                        "(KITT_OAUTH_CLIENT_ID / KITT_OAUTH_CLIENT_SECRET). G's approvals cannot be "
-                        "validated, so no founder decision will be accepted.")
+    for who, cid, sec, scope in (
+            ("KITT", settings.kitt_oauth_client_id, settings.kitt_oauth_client_secret,
+             "brief confirmation and initial document review"),
+            ("JARVIS", settings.jarvis_oauth_client_id, settings.jarvis_oauth_client_secret,
+             "final delivery approval / requested changes")):
+        if cid and sec:
+            ok.append(f"{who} session channel configured (GitHub OAuth app {cid}) for {scope}")
+        else:
+            problems.append(f"BLOCKER: {who} session founder-decision channel not configured "
+                            f"({who}_OAUTH_CLIENT_ID / {who}_OAUTH_CLIENT_SECRET). G's decisions for {scope} "
+                            "cannot be validated, so the automation pauses at that gate.")
     for role, cfg in settings.adapters.items():
         p = build_adapter(cfg).problems()
         if p:

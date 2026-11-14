@@ -9,7 +9,8 @@ or any model provider.
 | Item | State | What is needed |
 |---|---|---|
 | `FOUNDER_GITHUB_USERNAME` | not set | G's actual GitHub login. Service refuses to start without it. |
-| **KITT session OAuth App + GPT Action** | **not created — BLOCKER for all founder decisions** | GitHub OAuth App, KITT GPT Action importing `/kitt/openapi.json`, G signs in once (OPERATING.md §5). Until then every founder decision returns 503 and nothing can be approved. |
+| **KITT session OAuth App + GPT Action** | **not created — BLOCKER for brief and initial review** | GitHub OAuth App, KITT GPT Action importing `/kitt/openapi.json`, G signs in once (OPERATING.md §5). |
+| **JARVIS session integration** | **not built — BLOCKER for final approval** | Service side is done (`/jarvis/pending`, `/jarvis/founder-decision`, verification against a JARVIS OAuth App). Missing: the connector that lets the JARVIS chat call them with G's GitHub token. A Claude chat reaches external services through an MCP connector with OAuth, which is not implemented here. Until it exists, the final approval gate pauses and reports the blocker. |
 | GitHub App | not created/installed | App ID, installation ID, private key, webhook secret, repo ID (see OPERATING.md §1) |
 | JARVIS Gmail OAuth | not authorized here | OAuth client + refresh token for jarvis.resystem@gmail.com (scopes `gmail.send`, `gmail.readonly`) |
 | KITT adapter | **unsupported** (default) | Choose `anthropic`, `openai_compat`, `http`, or `manual` |
@@ -34,20 +35,24 @@ or any model provider.
   sandboxed coding agent. Neither is included.
 - **Inbox delivery** is never claimed: only Gmail API acceptance (message ID +
   timestamp) is recorded.
-- **Pending-review notifications to KITT** are GitHub comments mentioning KITT's
-  login plus the `/kitt/pending` endpoint. ChatGPT cannot receive pushed
-  messages, so KITT only sees new packages when G opens/uses the KITT session
-  (and KITT calls `listPendingFounderReviews`) or when KITT's GitHub login gets
-  the @mention notification. No founder email exists.
-- **KITT's own document work from ChatGPT.** KITT's tasks (draft, apply
-  decisions, finalize) still need files committed to GitHub and a `/handoff`
+- **Review package email** goes to baileys.resystem@gmail.com from the JARVIS
+  Gmail account. Only Gmail API acceptance is recorded; inbox delivery is not
+  confirmed.
+- **Pending-review notifications** are GitHub comments mentioning the owning
+  agent (KITT for initial review, JARVIS for final review) plus that session's
+  `/pending` endpoint. Neither ChatGPT nor a Claude chat can receive pushed
+  messages, so an agent sees new items when G opens the session (and the agent
+  checks pending reviews) or via its GitHub @mention. Founder decisions are never
+  taken from email; there is no founder-mailbox polling.
+- **KITT's own work from ChatGPT.** KITT's tasks (draft, apply decisions,
+  finalize, delivery review, recording G's final decisions) still need files committed to GitHub and a `/handoff`
   from KITT's configured GitHub login (`ADAPTER_KITT_KIND=manual`). A ChatGPT GPT
   cannot do that unless it is given a GitHub-writing action; that action is
   **not implemented here**. Alternatively run KITT's drafting through an API
   adapter and keep ChatGPT only for G's conversation and decisions.
-- **Residual trust in the KITT session:** the server verifies the session is
-  KITT's and the signed-in user is G, and ChatGPT requires G to confirm each
-  decision call. It cannot prove that G read every word of the package; the
+- **Residual trust in the sessions:** the server verifies the session's OAuth
+  app and that the signed-in user is G; ChatGPT (and Claude connectors) ask G to
+  confirm each decision call. It cannot prove that G read every word of the package; the
   verbatim `founder_statement` is recorded for that reason.
 - **No founder mailbox polling or email approval parsing** exists (none was
   ever implemented). Gmail is used only to send JARVIS's final report and to

@@ -28,6 +28,24 @@ publishes (an HTML comment header on Markdown, a `_coint` key on JSON).
 | council_review | done | council/reviews/<ROLE>.md (e.g. council/reviews/COUNCIL_2.md) |
 | council_draft | done | council/drafts/proposed-final-draft.md, council/drafts/findings-index.json, council/drafts/conflict-decision-log.md, council/drafts/unresolved-blockers.md |
 | develop_and_deliver | submitted, requires_founder_decision | reviews/jarvis/finding-dispositions.json, documents/implementation-document.md, verification/verification-report.json, delivery/delivery.md, delivery/final-report.md |
+| delivery_review (KITT) | accepted, changes_requested | reviews/kitt/delivery-review.md, reviews/kitt/delivery-findings.json |
+| finalize_delivery (JARVIS) | submitted, requires_founder_decision | everything develop_and_deliver requires + reviews/jarvis/kitt-findings-response.json |
+| record_founder_decision (KITT) | recorded | approvals/founder-decision-<decision_id>.md citing the decision_id, decision_type and exact delivery SHA |
+
+### reviews/kitt/delivery-findings.json
+
+```json
+{"findings": [{"id": "K-1", "severity": "high|medium|low", "requirement": "AC2",
+  "summary": "...", "required_change": "..."}]}
+```
+
+### reviews/jarvis/kitt-findings-response.json
+
+```json
+{"responses": [{"finding_id": "K-1", "action": "fixed|clarified|rejected|requires_founder_decision",
+  "details": "..."}]}
+```
+Every KITT finding must have a response.
 
 ### council/packages/manifest.json (freeze_council_package)
 

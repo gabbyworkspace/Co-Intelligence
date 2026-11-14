@@ -17,6 +17,7 @@ GITHUB_REPO = "Co-Intelligence"
 GITHUB_URL = "https://github.com/gabbyworkspace/Co-Intelligence"
 FINAL_REPORT_FROM = "jarvis.resystem@gmail.com"
 FINAL_REPORT_TO = "g@resystem.org"
+REVIEW_PACKAGE_TO = "baileys.resystem@gmail.com"   # step 11 review package (Review Required only)
 TIMEZONE = "Asia/Dubai"
 
 ROLES = ("KITT", "JARVIS", "GRONK", "COUNCIL_1", "COUNCIL_2", "COUNCIL_3", "COUNCIL_4")
@@ -83,6 +84,8 @@ class Settings:
     adapters: dict[str, AdapterConfig] = field(default_factory=dict)
     kitt_oauth_client_id: str | None = None      # GitHub OAuth App used by KITT's GPT Action
     kitt_oauth_client_secret: str | None = None
+    jarvis_oauth_client_id: str | None = None    # OAuth app of the authorized JARVIS chat session
+    jarvis_oauth_client_secret: str | None = None
     founder_user_id: str | None = None           # optional: pin G's numeric GitHub user id
     public_base_url: str | None = None           # e.g. https://coint.example.com (for OpenAPI)
     lease_seconds: int = 300
@@ -132,7 +135,8 @@ def load_settings() -> Settings:
     if not _LOGIN_RE.match(founder):
         raise ConfigError(f"FOUNDER_GITHUB_USERNAME {founder!r} is not a valid GitHub login")
     # Recipient/sender overrides are refused, not silently ignored.
-    for name, fixed in (("FINAL_REPORT_TO", FINAL_REPORT_TO), ("FINAL_REPORT_FROM", FINAL_REPORT_FROM)):
+    for name, fixed in (("FINAL_REPORT_TO", FINAL_REPORT_TO), ("FINAL_REPORT_FROM", FINAL_REPORT_FROM),
+                        ("REVIEW_PACKAGE_TO", REVIEW_PACKAGE_TO)):
         v = _env(name)
         if v is not None and v.strip().lower() != fixed:
             raise ConfigError(f"{name} is fixed to {fixed} and cannot be changed")
@@ -157,6 +161,8 @@ def load_settings() -> Settings:
         adapters={r: _adapter(r) for r in ROLES},
         kitt_oauth_client_id=_env("KITT_OAUTH_CLIENT_ID"),
         kitt_oauth_client_secret=_env("KITT_OAUTH_CLIENT_SECRET"),
+        jarvis_oauth_client_id=_env("JARVIS_OAUTH_CLIENT_ID"),
+        jarvis_oauth_client_secret=_env("JARVIS_OAUTH_CLIENT_SECRET"),
         founder_user_id=_env("FOUNDER_GITHUB_USER_ID"),
         public_base_url=_env("PUBLIC_BASE_URL"),
         lease_seconds=_int("LEASE_SECONDS", 300),

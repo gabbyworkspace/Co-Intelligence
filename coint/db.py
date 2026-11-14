@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS approvals (
     comment_id INTEGER,
     comment_url TEXT,
     details TEXT,
-    channel TEXT NOT NULL DEFAULT 'system',  -- kitt_session | system
+    channel TEXT NOT NULL DEFAULT 'system',  -- kitt_session | jarvis_session | system
     attestation_id TEXT,                     -- founder_decisions.decision_id
     created_at TEXT NOT NULL
 );
@@ -172,6 +172,7 @@ CREATE TABLE IF NOT EXISTS founder_decisions (
     github_user_id INTEGER NOT NULL,
     oauth_client_id TEXT NOT NULL,
     token_fingerprint TEXT NOT NULL,
+    channel TEXT NOT NULL,           -- kitt_session | jarvis_session
     outcome TEXT NOT NULL,           -- accepted | rejected
     detail TEXT,
     received_at TEXT NOT NULL
@@ -189,11 +190,14 @@ CREATE TABLE IF NOT EXISTS closures (
 
 CREATE TABLE IF NOT EXISTS email_outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email_key TEXT NOT NULL UNIQUE,  -- project|cycle|approval
+    email_key TEXT NOT NULL UNIQUE,  -- final:project|cycle|approval  or  review:project|cycle|sha
+    kind TEXT NOT NULL DEFAULT 'final_report',  -- final_report | review_package
+    to_addr TEXT NOT NULL DEFAULT 'g@resystem.org',
+    delivery_sha TEXT,
     project_id TEXT NOT NULL,
     cycle INTEGER NOT NULL,
-    approval_id INTEGER NOT NULL,
-    state TEXT NOT NULL,             -- PENDING | SENDING | SENT | SEND_UNCERTAIN | BLOCKED
+    approval_id INTEGER,
+    state TEXT NOT NULL,             -- PENDING | SENDING | SENT | SEND_UNCERTAIN | BLOCKED | CANCELLED
     rfc822_message_id TEXT NOT NULL,
     subject TEXT,
     attempts INTEGER NOT NULL DEFAULT 0,

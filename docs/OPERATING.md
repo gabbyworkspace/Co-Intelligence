@@ -47,70 +47,65 @@ crontab in `deploy/crontab.example` (systemd units in `deploy/systemd/`).
 
 Run tests: `pip install -r requirements-dev.txt && pytest`.
 
-## 5. Founder decisions — through the authorized KITT session only
+## 5. Founder decisions — two validated sessions, KITT records everything
 
-G talks only to KITT in ChatGPT. There is no founder chatbot, founder email, or
-founder GitHub command. Founder decisions reach the automation through one
-trusted integration:
+| Phase | G talks to | Decisions | Session endpoint |
+|---|---|---|---|
+| Initial brief and document review | KITT (ChatGPT) | `project_start`, `initial_approve`, `initial_changes` | `/kitt/*` |
+| Final delivery review | JARVIS (JARVIS chat) | `delivery_approve_close` (APPROVE AND CLOSE), `delivery_changes` (REQUEST CHANGES) | `/jarvis/*` |
+| Escalations | whoever owns the phase | `project_resume` (+ `decisions`) | either |
+| Pause / resume | either | `project_pause`, `project_resume` | either |
 
-```
-G ⇄ KITT (ChatGPT custom GPT) ──GPT Action, GitHub OAuth (G signs in)──▶ POST /kitt/founder-decision
-                                                                      └▶ GET  /kitt/pending
-```
+Each session integration calls this service with a GitHub OAuth token from its
+**own** OAuth App, obtained when G signs in with GitHub inside that session.
+Every decision is accepted only if GitHub confirms the token was issued to that
+session's app and belongs to `FOUNDER_GITHUB_USERNAME` (and
+`FOUNDER_GITHUB_USER_ID` if set). A KITT-session token is refused on the JARVIS
+endpoints and vice versa, and each session may only submit its own decision
+types. Decisions are bound to `project_id`, `cycle` and the exact 40-character
+`sha`; stale versions, wrong stages and replayed `decision_id`s are rejected.
+Every decision (accepted or rejected) goes to `founder_decisions`, the audit log,
+and a comment on the tracking issue. The token is never stored.
 
-**Setup**
-1. Create a **GitHub OAuth App** dedicated to KITT's GPT Action (not the GitHub
-   App from §1). Put its client ID/secret in `KITT_OAUTH_CLIENT_ID` /
-   `KITT_OAUTH_CLIENT_SECRET_FILE`.
-2. In the KITT GPT → *Actions* → import `https://<host>/kitt/openapi.json`.
-   Authentication: OAuth · client ID/secret of that OAuth App · authorization URL
-   `https://github.com/login/oauth/authorize` · token URL
-   `https://github.com/login/oauth/access_token` · scope `read:user`.
-   Copy the ChatGPT callback URL into the OAuth App's callback URL.
-3. G uses the GPT and signs in with **G's own GitHub account** the first time.
-4. Add `prompts/kitt.md` → "Founder relay" to the GPT instructions.
+**Never approval evidence:** a GitHub comment (from KITT, JARVIS or G's own
+account), an email reply, an issue close or label, or any agent statement.
 
-**What is validated on every decision** (`coint/kitt_session.py`)
-- GitHub confirms the bearer token was issued to the KITT OAuth App
-  (`POST /applications/{client_id}/token`) — i.e. it comes from the authorized
-  KITT session — and that its user is `FOUNDER_GITHUB_USERNAME`
-  (and `FOUNDER_GITHUB_USER_ID` if set). The token is never stored; only a
-  SHA-256 fingerprint.
-- The action is marked consequential, so ChatGPT shows G the exact payload and
-  G must press **Confirm** before it is sent.
-- The decision is bound to `project_id`, `cycle` and the exact 40-char `sha`
-  G reviewed; stale versions, wrong stages and replays (`decision_id` reused
-  with different content) are rejected.
-- Every decision (accepted or rejected) is stored in `founder_decisions`,
-  written to the audit log, and posted as a **Founder decision recorded**
-  comment on the tracking issue.
+### Final review flow (steps 10–12)
 
-**Decision types**
+1. JARVIS completes development and verification → **KITT `delivery_review`**
+   (via GitHub) → **JARVIS `finalize_delivery`** addresses every KITT finding.
+2. The finalized version enters `FOUNDER_FINAL_REVIEW`: a "Review Required — for
+   JARVIS to present to G" comment is posted, and the **review package is
+   emailed from jarvis.resystem@gmail.com to baileys.resystem@gmail.com**
+   (durable outbox; failures are posted on the issue). `/jarvis/pending` gives
+   JARVIS the project ID, cycle, exact SHA, summary, verification, limitations,
+   KITT's review and the email status, including the exact chat confirmation to
+   use only after a successful send.
+3. G decides in the JARVIS chat. The validated decision is handed to **KITT
+   `record_founder_decision`**, which publishes
+   `approvals/founder-decision-<id>.md` citing the decision reference. A record
+   that does not cite the validated decision is refused.
+4. Only after KITT's record: **APPROVE AND CLOSE** → approval re-validated
+   against the exact current delivery, closure recorded, tracking issue closed,
+   final report emailed to g@resystem.org. **REQUEST CHANGES** → Version N+1
+   (previous cycle preserved), routed to KITT (documents) or JARVIS
+   (development), reviewed again, and back to G through JARVIS. No closure, no
+   final report.
 
-| decision_type | Required fields | Effect |
-|---|---|---|
-| `project_start` | `brief` (title, objective, scope, deliverables, acceptance_criteria, constraints, `confirmed: true`), optional `issue_number` | creates tracking issue if needed, commits `brief/confirmed-brief.json`, starts KITT |
-| `initial_approve` | `project_id`, `cycle`, `sha` (+ optional `decisions`) | KITT applies decisions → JARVIS |
-| `initial_changes` | + `changes` | KITT revises (same cycle) |
-| `delivery_changes` | + `changes`, `route` (`documents`/`development`) | Version N+1 |
-| `delivery_approve_close` | `project_id`, `cycle`, `sha` | validates delivery, records approval + closure, closes issue → final email |
-| `project_pause` / `project_resume` | `project_id` (+ `decisions` when answering an escalation) | |
+### Setup
 
-All require `decision_id` (new UUID) and `founder_statement` (G's words, verbatim).
+- **KITT session**: GitHub OAuth App + KITT GPT Action importing
+  `https://<host>/kitt/openapi.json` (OAuth: authorize
+  `https://github.com/login/oauth/authorize`, token
+  `https://github.com/login/oauth/access_token`, scope `read:user`).
+- **JARVIS session**: a second GitHub OAuth App; the JARVIS chat must call
+  `https://<host>/jarvis/pending` and `/jarvis/founder-decision` with G's token
+  from that app (spec at `/jarvis/openapi.json`). See UNIMPLEMENTED.md: the
+  connector for the JARVIS chat is not built yet.
 
-**Founder review packages** are posted on the tracking issue as
-"📨 Review Required — founder review package for KITT to present to G"
-(mentioning KITT's GitHub login) and served with document contents at the exact
-version by `GET /kitt/pending` (`listPendingFounderReviews`). Daily reminders
-(09:17 Dubai) mention KITT. Nothing advances on a reminder.
-
-**Never approval evidence:** any GitHub comment (KITT's or anyone's, including
-G's own account), an issue close, a label, or an agent's claim. Such comments
-are rejected with an explanation.
-
-**If the integration is unavailable** (not configured, OAuth app credentials
-rejected), `/kitt/founder-decision` returns **503 with a `blocker`** and
-`coint doctor` reports it. There is no bypass.
+**If a session integration is unavailable**, its endpoints return **503 with a
+`blocker`**, `coint doctor` reports it, and the workflow waits at that gate.
+There is no bypass.
 
 `/project status` remains available as a GitHub comment for G and the agents.
 

@@ -19,6 +19,6 @@ routing, approvals, and email. Your job is only the task described below.
 5. Return **one JSON object only**, matching `OUTPUT_SCHEMA.md` and the task's
    required verdicts and files. No prose outside the JSON.
 6. File paths in `"files"` are relative to `projects/<PROJECT_ID>/` and must be
-   inside the allowed folders: brief/, documents/, assets/, reviews/jarvis/,
+   inside the allowed folders: brief/, documents/, assets/, reviews/jarvis/, reviews/kitt/,
    council/packages/, council/reviews/, council/drafts/, development/,
    verification/, delivery/, approvals/.

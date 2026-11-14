@@ -10,9 +10,11 @@ GitHub ──webhook──▶ server.py ── verify_webhook ─▶ webhook_del
                            → validate_output → checkpoint → publish_output (commit) → complete_and_route
                          → dispatch_outbox (GitHub comments / issue close)
 
-KITT GPT Action (G signed in via GitHub OAuth) ─▶ /kitt/founder-decision ─▶ KittSessionVerifier
-   (token issued to KITT OAuth App? user == founder?) ─▶ founder_decisions + audit ─▶ same command handlers
-   GitHub comments can never perform founder actions.
+KITT session (ChatGPT)  ─▶ /kitt/founder-decision   ─┐  SessionVerifier: token issued to THIS session's
+JARVIS session (chat)   ─▶ /jarvis/founder-decision ─┘  OAuth App? user == founder? decision type allowed
+   ─▶ founder_decisions + audit ─▶ command handlers. JARVIS-session decisions take effect only after
+   KITT's record_founder_decision task publishes a GitHub record citing the validated decision.
+   GitHub comments and agent statements can never perform founder actions.
 
 scheduler.py (single process): recover_pending_tasks · monitor_overdue_tasks ·
                                email_recovery (process_email_outbox) · founder_reminders
@@ -31,9 +33,12 @@ scheduler.py (single process): recover_pending_tasks · monitor_overdue_tasks ·
 | 7 | JARVIS_COUNCIL_PACKAGE | JARVIS `freeze_council_package` | frozen → 8 · not addressed → 6 (max 3 loops, then FOUNDER_DECISION) |
 | 8 | COUNCIL_REVIEW | GRONK `council_dispatch` → COUNCIL_1..4 `council_review` | all four valid for same package → 9 |
 | 9–10 | GRONK_DRAFT | GRONK `council_draft` | 11 |
-| 11 | JARVIS_DEVELOPMENT | JARVIS `develop_and_deliver` | submitted → 12 · needs G → FOUNDER_DECISION |
-| 12 | FOUNDER_FINAL_REVIEW | FOUNDER gate | changes → Version N+1 · approve-close → CLOSED |
-| 14 | CLOSED | — | final report email (outbox) |
+| 10a | JARVIS_DEVELOPMENT | JARVIS `develop_and_deliver` (reconcile, develop, verify) | submitted → 10b · needs G → FOUNDER_DECISION |
+| 10b | KITT_DELIVERY_REVIEW | KITT `delivery_review` | 10c |
+| 10c | JARVIS_FINALIZE_DELIVERY | JARVIS `finalize_delivery` (addresses KITT findings) | submitted → 11 |
+| 11 | FOUNDER_FINAL_REVIEW | FOUNDER gate, G ↔ JARVIS session; review package email → baileys.resystem@gmail.com | validated decision → recording |
+| 11r | FOUNDER_DECISION_RECORDING | KITT `record_founder_decision` (GitHub record) | changes → Version N+1 · approve-close → CLOSED |
+| 12 | CLOSED | — | final report email → g@resystem.org (outbox) |
 
 Task states: QUEUED, RUNNING, WAITING_FOUNDER, BLOCKED, COMPLETED, FAILED,
 CANCELLED, SUPERSEDED.
@@ -50,5 +55,5 @@ CANCELLED, SUPERSEDED.
   before routing; retries resume from the last checkpoint.
 - **Routing is code**: models choose only a verdict from `models.ROUTES`.
 - **Founder authority**: only decisions verified from the authorized KITT session; email additionally requires the approval to reference an accepted `delivery_approve_close` founder decision for the same SHA.
-- **Closure email**: six preconditions, durable outbox, fixed Message-ID,
+- **Closure email**: six preconditions plus a JARVIS-session-validated approval and KITT's GitHub record of it, durable outbox, fixed Message-ID,
   SENDING → SENT | SEND_UNCERTAIN (reconcile) | PENDING (definite pre-send failure).

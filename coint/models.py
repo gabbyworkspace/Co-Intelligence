@@ -31,8 +31,11 @@ class Stage(str, Enum):
     JARVIS_COUNCIL_PACKAGE = "JARVIS_COUNCIL_PACKAGE"  # 7
     COUNCIL_REVIEW = "COUNCIL_REVIEW"                  # 8
     GRONK_DRAFT = "GRONK_DRAFT"                        # 9-10
-    JARVIS_DEVELOPMENT = "JARVIS_DEVELOPMENT"          # 11
-    FOUNDER_FINAL_REVIEW = "FOUNDER_FINAL_REVIEW"      # 12
+    JARVIS_DEVELOPMENT = "JARVIS_DEVELOPMENT"          # 10/11 develop + verify
+    KITT_DELIVERY_REVIEW = "KITT_DELIVERY_REVIEW"      # step 10: KITT reviews delivery
+    JARVIS_FINALIZE_DELIVERY = "JARVIS_FINALIZE_DELIVERY"  # step 10: JARVIS addresses KITT findings
+    FOUNDER_FINAL_REVIEW = "FOUNDER_FINAL_REVIEW"      # step 11: G <-> JARVIS session
+    FOUNDER_DECISION_RECORDING = "FOUNDER_DECISION_RECORDING"  # KITT records G's decision on GitHub
     FOUNDER_DECISION = "FOUNDER_DECISION"              # loop limit / blockers escalation
     CLOSED = "CLOSED"                                  # 14
 
@@ -54,7 +57,10 @@ STAGE_TASK = {
     Stage.COUNCIL_REVIEW: ("GRONK", "council_dispatch"),
     Stage.GRONK_DRAFT: ("GRONK", "council_draft"),
     Stage.JARVIS_DEVELOPMENT: ("JARVIS", "develop_and_deliver"),
+    Stage.KITT_DELIVERY_REVIEW: ("KITT", "delivery_review"),
+    Stage.JARVIS_FINALIZE_DELIVERY: ("JARVIS", "finalize_delivery"),
     Stage.FOUNDER_FINAL_REVIEW: ("FOUNDER", "founder_final_review"),
+    Stage.FOUNDER_DECISION_RECORDING: ("KITT", "record_founder_decision"),
     Stage.FOUNDER_DECISION: ("FOUNDER", "founder_decision"),
 }
 
@@ -71,8 +77,12 @@ ROUTES = {
     ("freeze_council_package", "frozen"): Stage.COUNCIL_REVIEW,
     ("freeze_council_package", "feedback_not_addressed"): Stage.KITT_FINALIZE,
     ("council_draft", "done"): Stage.JARVIS_DEVELOPMENT,
-    ("develop_and_deliver", "submitted"): Stage.FOUNDER_FINAL_REVIEW,
+    ("develop_and_deliver", "submitted"): Stage.KITT_DELIVERY_REVIEW,
     ("develop_and_deliver", "requires_founder_decision"): Stage.FOUNDER_DECISION,
+    ("delivery_review", "accepted"): Stage.JARVIS_FINALIZE_DELIVERY,
+    ("delivery_review", "changes_requested"): Stage.JARVIS_FINALIZE_DELIVERY,
+    ("finalize_delivery", "submitted"): Stage.FOUNDER_FINAL_REVIEW,
+    ("finalize_delivery", "requires_founder_decision"): Stage.FOUNDER_DECISION,
 }
 
 # Allowed (source_role, task_type) -> destination roles for explicit /handoff.
@@ -87,7 +97,10 @@ HANDOFF_ALLOWED = {
     ("COUNCIL_3", "council_review"): {"GRONK"},
     ("COUNCIL_4", "council_review"): {"GRONK"},
     ("GRONK", "council_draft"): {"JARVIS"},
-    ("JARVIS", "develop_and_deliver"): {"FOUNDER"},
+    ("JARVIS", "develop_and_deliver"): {"KITT"},
+    ("KITT", "delivery_review"): {"JARVIS"},
+    ("JARVIS", "finalize_delivery"): {"FOUNDER"},
+    ("KITT", "record_founder_decision"): {"JARVIS"},
 }
 
 # Expected outputs per task type (paths relative to projects/<PROJECT_ID>/).
@@ -111,15 +124,26 @@ EXPECTED_OUTPUTS = {
         "delivery/delivery.md",
         "delivery/final-report.md",
     ],
+    "delivery_review": ["reviews/kitt/delivery-review.md", "reviews/kitt/delivery-findings.json"],
+    "finalize_delivery": [
+        "reviews/jarvis/kitt-findings-response.json",
+        "reviews/jarvis/finding-dispositions.json",
+        "documents/implementation-document.md",
+        "verification/verification-report.json",
+        "delivery/delivery.md",
+        "delivery/final-report.md",
+    ],
+    "record_founder_decision": [],  # approvals/founder-decision-<decision_id>.md, checked specially
 }
 
 VERDICTS = {}
 for (tt, verdict) in ROUTES:
     VERDICTS.setdefault(tt, set()).add(verdict)
 VERDICTS["council_review"] = {"done"}
+VERDICTS["record_founder_decision"] = {"recorded"}
 
 PROJECT_DIRS = [
-    "brief", "documents", "assets", "reviews/jarvis", "council/packages",
+    "brief", "documents", "assets", "reviews/jarvis", "reviews/kitt", "council/packages",
     "council/reviews", "council/drafts", "development", "verification",
     "delivery", "approvals",
 ]

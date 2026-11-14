@@ -74,10 +74,13 @@ def make_handler(engine, worker: Worker):
             h = self.headers.get("Authorization") or ""
             return h[7:].strip() if h.lower().startswith("bearer ") else ""
 
-        def _verify_kitt(self):
-            """Authorized KITT session + founder identity, or an error response."""
+        def _verifier(self):
+            return engine.jarvis_verifier if self.path.startswith("/jarvis/") else engine.kitt_verifier
+
+        def _verify_session(self):
+            """Authorized KITT/JARVIS session + founder identity, or an error response."""
             try:
-                return engine.kitt_verifier.verify_founder(self._bearer()), None
+                return self._verifier().verify_founder(self._bearer()), None
             except SessionUnavailable as e:
                 record_audit_event(engine.db, actor="unknown", action="kitt_session.unavailable",
                                    outcome="BLOCKER", detail={"reason": str(e)})
@@ -95,19 +98,20 @@ def make_handler(engine, worker: Worker):
             if self.path == "/healthz":
                 engine.db.one("SELECT 1")
                 return self._send(200, {"ok": True})
-            if self.path == "/kitt/openapi.json":
+            if self.path in ("/kitt/openapi.json", "/jarvis/openapi.json"):
                 base = engine.s.public_base_url or f"http://{self.headers.get('Host', 'localhost')}"
-                return self._send(200, openapi_spec(base))
-            if self.path == "/kitt/pending":
-                att, err = self._verify_kitt()
+                return self._send(200, openapi_spec(base, self._verifier().channel))
+            if self.path in ("/kitt/pending", "/jarvis/pending"):
+                att, err = self._verify_session()
                 if err:
                     return self._send(*err)
-                return self._send(200, {"pending": engine.pending_reviews()})
+                return self._send(200, {"session": att.channel,
+                                        "pending": engine.pending_reviews(channel=att.channel)})
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
-            if self.path == "/kitt/founder-decision":
-                att, err = self._verify_kitt()
+            if self.path in ("/kitt/founder-decision", "/jarvis/founder-decision"):
+                att, err = self._verify_session()
                 if err:
                     return self._send(*err)
                 length = int(self.headers.get("Content-Length") or 0)

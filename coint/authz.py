@@ -20,9 +20,21 @@ def is_founder(settings: Settings, actor: str) -> bool:
     return actor.lower() == settings.founder_login.lower()
 
 
-FOUNDER_CHANNEL_MSG = ("Founder decisions are accepted only through the authorized KITT session "
-                       "(G decides in KITT's ChatGPT; KITT submits it with the `submitFounderDecision` action). "
-                       "A GitHub comment, including KITT's, is not approval evidence.")
+FOUNDER_CHANNEL_MSG = ("Founder decisions are accepted only through a validated founder session: "
+                       "brief and initial document review via the KITT session, final delivery approval or "
+                       "changes via the JARVIS session. A GitHub comment or agent statement is not approval "
+                       "evidence.")
+
+# Action -> sessions allowed to carry G's decision.
+ACTION_CHANNELS = {
+    "project start": {"kitt_session"},
+    "initial approve": {"kitt_session"},
+    "initial changes": {"kitt_session"},
+    "delivery changes": {"jarvis_session"},
+    "delivery approve-close": {"jarvis_session"},
+    "project pause": {"kitt_session", "jarvis_session"},
+    "project resume": {"kitt_session", "jarvis_session"},
+}
 
 
 def authorize_action(settings: Settings, actor: str, action: str, project=None, *,
@@ -32,7 +44,7 @@ def authorize_action(settings: Settings, actor: str, action: str, project=None, 
     Founder actions require channel == 'kitt_session', i.e. an identity already
     verified by KittSessionVerifier. GitHub comments can never satisfy this."""
     if action in FOUNDER_ONLY:
-        if channel != "kitt_session":
+        if channel not in ACTION_CHANNELS[action]:
             raise CommandRejected(FOUNDER_CHANNEL_MSG)
         if not is_founder(settings, actor):
             raise CommandRejected(f"@{actor} is not authorized for `{action}`. Only the configured founder may do this.")

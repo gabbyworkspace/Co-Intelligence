@@ -86,3 +86,38 @@ def test_webhook_durable_queue_and_dedupe(h):
         time.sleep(0.05)
     assert r["outcome"].startswith("rejected")
     srv.shutdown()
+
+
+def test_jarvis_session_endpoints(h, monkeypatch):
+    h.to_final_review()
+    srv = _serve(h)
+    tokens = {"g-jarvis": {"app": {"client_id": "jarvis-app"}, "user": {"login": FOUNDER, "id": 1}},
+              "g-kitt": {"app": {"client_id": "kitt-app"}, "user": {"login": FOUNDER, "id": 1}}}
+
+    def check(tok, cid):
+        from coint.errors import AuthError
+        info = tokens.get(tok)
+        if not info or info["app"]["client_id"] != cid:
+            raise AuthError("token not issued to this app")
+        return info
+    monkeypatch.setattr(h.engine.jarvis_verifier, "_check_token", lambda t: check(t, "jarvis-app"))
+    monkeypatch.setattr(h.engine.kitt_verifier, "_check_token", lambda t: check(t, "kitt-app"))
+    sha = h.project()["current_delivery_sha"]
+    dec = {"decision_id": "final-0001", "decision_type": "delivery_approve_close", "project_id": "CI-TEST",
+           "cycle": 1, "sha": sha, "founder_statement": "APPROVE AND CLOSE"}
+    # a KITT-session token cannot be used on the JARVIS channel, and KITT cannot submit final approval
+    assert _req(srv, "/jarvis/founder-decision", dec, {"Authorization": "Bearer g-kitt"})[0] == 401
+    assert _req(srv, "/kitt/founder-decision", dict(dec, decision_id="final-0002"),
+                {"Authorization": "Bearer g-kitt"})[0] == 400
+    code, res = _req(srv, "/jarvis/pending", headers={"Authorization": "Bearer g-jarvis"}, method="GET")
+    assert code == 200 and res["session"] == "jarvis_session" and res["pending"][0]["sha"] == sha
+    code, res = _req(srv, "/jarvis/founder-decision", dec, {"Authorization": "Bearer g-jarvis"})
+    assert code == 200 and res["outcome"] == "accepted"
+    for _ in range(100):
+        if h.engine.project("CI-TEST")["status"] == "CLOSED":
+            break
+        time.sleep(0.05)
+    assert h.engine.project("CI-TEST")["status"] == "CLOSED"   # after KITT recorded it
+    spec = _req(srv, "/jarvis/openapi.json", method="GET")[1]
+    assert set(spec["paths"]) == {"/jarvis/pending", "/jarvis/founder-decision"}
+    srv.shutdown()

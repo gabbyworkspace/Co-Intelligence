@@ -18,7 +18,8 @@ def make_settings(db_path: str, **kw) -> Settings:
                  github_app_private_key=None, github_installation_id=None, github_repo_id=None,
                  app_bot_login="co-intel[bot]", gmail_client_id=None, gmail_client_secret=None,
                  gmail_refresh_token=None, adapters=adapters, retry_delays_minutes=(0, 0, 0),
-                 kitt_oauth_client_id="kitt-app", kitt_oauth_client_secret="x")
+                 kitt_oauth_client_id="kitt-app", kitt_oauth_client_secret="x",
+                 jarvis_oauth_client_id="jarvis-app", jarvis_oauth_client_secret="y")
     for k, v in kw.items():
         setattr(s, k, v)
     return s
@@ -86,8 +87,22 @@ class FakeGitHub:
         return list(self.repo_comments)
 
 
-def default_output(role: str, task_type: str, meta: dict, inputs: dict) -> dict:
+DELIVERY_FILES = {
+    "reviews/jarvis/finding-dispositions.json": json.dumps(
+        {"dispositions": [{"finding_id": "F-001", "disposition": "accepted"}]}),
+    "documents/implementation-document.md": "impl",
+    "verification/verification-report.json": json.dumps(
+        {"development_complete": True, "status": "passed",
+         "checks": [{"name": "AC1", "result": "passed", "evidence": "pytest ok"}], "limitations": ["demo only"]}),
+    "development/app.py": "print('hi')",
+    "delivery/delivery.md": "delivered",
+    "delivery/final-report.md": "Summary. Handover: run app.py",
+}
+
+
+def default_output(role: str, task_type: str, meta: dict, inputs: dict, context: dict | None = None) -> dict:
     sha = meta["input_sha"]
+    context = context or {}
     files = {}
     verdict = "done"
     if task_type == "create_document":
@@ -113,15 +128,21 @@ def default_output(role: str, task_type: str, meta: dict, inputs: dict) -> dict:
                  "council/drafts/unresolved-blockers.md": "none"}
     elif task_type == "develop_and_deliver":
         verdict = "submitted"
-        files = {"reviews/jarvis/finding-dispositions.json": json.dumps(
-                     {"dispositions": [{"finding_id": "F-001", "disposition": "accepted"}]}),
-                 "documents/implementation-document.md": "impl",
-                 "verification/verification-report.json": json.dumps(
-                     {"development_complete": True, "status": "passed",
-                      "checks": [{"name": "AC1", "result": "passed", "evidence": "pytest ok"}], "limitations": []}),
-                 "development/app.py": "print('hi')",
-                 "delivery/delivery.md": "delivered",
-                 "delivery/final-report.md": "Summary. Handover: run app.py"}
+        files = dict(DELIVERY_FILES)
+    elif task_type == "delivery_review":
+        verdict = "changes_requested"
+        files = {"reviews/kitt/delivery-review.md": "K-1: clarify handover",
+                 "reviews/kitt/delivery-findings.json": json.dumps({"findings": [{"id": "K-1", "summary": "handover"}]})}
+    elif task_type == "finalize_delivery":
+        verdict = "submitted"
+        files = dict(DELIVERY_FILES, **{
+            "reviews/jarvis/kitt-findings-response.json": json.dumps(
+                {"responses": [{"finding_id": "K-1", "action": "handover clarified"}]}),
+            "delivery/final-report.md": "Summary. Handover (clarified): run app.py"})
+    elif task_type == "record_founder_decision":
+        verdict = "recorded"
+        files = {context["record_file"]: f"Decision {context['decision_id']} {context['decision_type']} "
+                                         f"cycle {context['cycle']} version {context['delivery_sha']}"}
     return {"verdict": verdict, "files": files, "summary": f"{role} {task_type}", "input_sha": sha,
             "blockers": [], "limitations": [], "next_action": "next"}
 
@@ -139,9 +160,12 @@ class FakeAdapter(AgentAdapter):
         for chunk in req.user.split('<repository_data path="')[1:]:
             path, rest = chunk.split('">\n', 1)
             inputs[path] = rest.rsplit("\n</repository_data>", 1)[0]
+        ctx_raw = req.user.split('<repository_data kind="task_context">\n', 1)[1].split("\n</repository_data>", 1)[0]
+        context = json.loads(ctx_raw)
         self.calls.append((meta["task_type"], meta["input_sha"], sorted(inputs)))
-        fn = self.script or default_output
-        return fn(self.cfg.role, meta["task_type"], meta, inputs)
+        if self.script:
+            return self.script(self.cfg.role, meta["task_type"], meta, inputs)
+        return default_output(self.cfg.role, meta["task_type"], meta, inputs, context)
 
 
 class FakeGmail:

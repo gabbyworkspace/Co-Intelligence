@@ -119,11 +119,17 @@ def founder_reminders(engine) -> list[str]:
             continue
         with db.tx() as c:
             c.execute("INSERT OR REPLACE INTO reminders VALUES (?,?,?,?)", (p["id"], p["stage"], p["current_cycle"], iso()))
-            kitt = engine.s.adapters["KITT"].github_login
-            engine.comment(c, p, f"🔔 Reminder{f' @{kitt}' if kitt else ''}: **Review Required** — `{p['id']}` is "
-                                 f"waiting for G's decision at {p['stage']} (Version {p['current_cycle']}). KITT: "
-                                 "present it to G in ChatGPT (`listPendingFounderReviews`). Nothing proceeds until "
-                                 "G decides through the authorized KITT session.")
+            gate = db.one("SELECT manifest FROM tasks WHERE project_id=? AND state='WAITING_FOUNDER'"
+                          " ORDER BY created_at DESC LIMIT 1", p["id"])
+            gctx = json.loads(gate["manifest"]).get("context", {}) if gate else {}
+            jarvis = engine.gate_channel(Stage(p["stage"]), gctx) == "jarvis_session"
+            who = "JARVIS" if jarvis else "KITT"
+            login = engine.s.adapters[who].github_login
+            where = "the JARVIS chat (`/jarvis/pending`)" if jarvis else "KITT's ChatGPT (`listPendingFounderReviews`)"
+            engine.comment(c, p, f"🔔 Reminder{f' @{login}' if login else ''}: **Review Required** — `{p['id']}` is "
+                                 f"waiting for G's decision at {p['stage']} (Version {p['current_cycle']}). {who}: "
+                                 f"present it to G in {where}. Nothing proceeds until G decides through the "
+                                 f"authorized {who} session.")
         sent.append(p["id"])
     engine.dispatch_outbox()
     return sent
