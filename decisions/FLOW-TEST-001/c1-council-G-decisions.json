@@ -1,0 +1,18 @@
+{
+  "project_id": "FLOW-TEST-001",
+  "cycle": 1,
+  "stage": "Step 7 reconciliation — founder decisions (WORKFLOW Q1 interim rule: raised in the JARVIS chat, recorded on GitHub by KITT)",
+  "decided_at_utc": "2026-11-14T17:22:10Z",
+  "source": "JARVIS chat (claude.ai, Co-Intelligence project), answers given by the signed-in user to JARVIS's question",
+  "verification": "NOT verified by the GitHub sign-in connector (not live). KITT must record these; treat as G's stated decisions pending that record.",
+  "reconciliation_sha": "dac970213ab748940ffb9ad63b1774dac9a9fd5c",
+  "council_package_sha": "57ed5a0454b2a69cdc82acf1bdab253417c053c5",
+  "council_return_sha": "4718d75fee4a6e7896a8ced7f8a8ff87fb024f99",
+  "decisions": {
+    "G-01": "Council v1.2 proposal controls the build (v1.1 plus the council's fixes).",
+    "G-02": "Allow closure with C17-C19 recorded as BLOCKED; overall result PARTIAL.",
+    "G-03": "150-word limit applies to reviews only; briefs and annexes may be longer.",
+    "G-06": "Button label 'Complete handoffs'; a second click does nothing and the final message stays."
+  },
+  "still_open_for_G": ["G-04 WORKFLOW Q1", "G-05 WORKFLOW Q2", "G-07 mandatory GitHub second factor", "G-08 repo visibility", "G-09 email caps", "G-10 per-agent identities", "G-11 signed tags / protected main"]
+}
