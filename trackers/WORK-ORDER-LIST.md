@@ -2,12 +2,15 @@
 
 | Work Order | Originator | Issued Dubai | State | Description |
 |---|---|---|---|---|
-| WO-CO-100-G-AcesBook-V1 | G | 18 November 2026, 00:46 GST (Dubai) | FOUNDER REVIEW COMPLETED; COMMON REVIEW PACKAGE IN PREPARATION; handoff not verified | AcesBook GCC; source PRE-CO-G-AcesBook-V2; GitHub index and Founder Review record |
+| WO-CO-100-G-AcesBook-V1 | G | 18 November 2026, 00:46 GST (Dubai) | FOUNDER REVIEW COMPLETED; JARVIS REVIEW DELIVERED; INTEGRITY FIXES REQUIRED | AcesBook GCC; source PRE-CO-G-AcesBook-V2; first-round assignment published |
 
 ## Subsequent events
-- 18 November 2026: Founder clarified that Pre-Order requires KITT gap analysis and discussion. Premature handoff issue #7 closed as not planned; no JARVIS handoff verified.
-- 18 November 2026: Founder completed six review decisions and supplied Dubai Decoded reference. Explicitly instructed KITT to proceed with a common independent review document, not recommend channels unilaterally.
-- Founder Review record: work-orders/WO-CO-100-G-AcesBook-V1-FOUNDER-REVIEW.md.
-- Original source ZIP and Dubai Decoded MP4 are **not verified as uploaded to GitHub**. Preserve source evidence and do not claim otherwise.
+- 18 November 2026: Founder completed six review decisions and supplied Dubai Decoded reference. Founder Review: work-orders/WO-CO-100-G-AcesBook-V1-FOUNDER-REVIEW.md.
+- 18 November 2026: First-round independent review assignment published, benchmark video non-blocking.
+- 18 November 2026 02:08 Dubai: JARVIS acknowledged receipt of the GitHub Work Order, according to JARVIS integrity record.
+- 18 November 2026 02:14 Dubai: JARVIS delivered independent first-round review in commit c7d51a4 and opened issue #8. Review includes cited briefs, 60 bilingual posts, scripts, calendar, sources, PDF; drafts only.
+- JARVIS integrity findings I-1..I-4: original Pre-Order ZIP/PDF absent, canonical package ZIP/PDF/prompt/attachments absent, and first-person founder wording requires V2 (preserve V1). Pending correction by KITT.
+- Dubai Decoded MP4 and screenshot binaries not verified uploaded; video analysis deferred to round two if inaccessible. Public link https://t.me/dubai.
+- GRONK receipt, KITT independent review, and step-04 founder decision D-1 not verified as completed.
 
-Do not delete closed entries. Record future handoff and receipts only with evidence.
+Evidence: https://github.com/gabbyworkspace/Co-Intelligence/issues/8 and https://github.com/gabbyworkspace/Co-Intelligence/commit/c7d51a4c80bb60b016ee16734b8630af7dde60f2.
