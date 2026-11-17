@@ -15,4 +15,6 @@
 
 Evidence: https://github.com/gabbyworkspace/Co-Intelligence/issues/8 and https://github.com/gabbyworkspace/Co-Intelligence/commit/c7d51a4c80bb60b016ee16734b8630af7dde60f2.
 
-- 18 November 2026: KITT committed first-person working V2 in eb97d707f4efde28a8952e5093c8d1baa31a84fd, preserving V1. Replied to JARVIS complaint and requested GRONK independent receipt/review on issue #8, comment 6962695375. Source ZIP, canonical PDF/ZIP and media remain unresolved; do not treat as complete handoff.
+- 18 November 2026: KITT committed first-person working V2 in eb97d707f4efde28a8952e5093c8d1baa31a84fd, preserving V1. Replied to JARVIS complaint on issue #8, comment 6962695375; that comment also contained an improper direct GRONK request, subsequently withdrawn by Kit. Source ZIP, canonical PDF/ZIP and media remain unresolved; do not treat as complete handoff.
+
+- Founder correction: Kit's responsibility is preparation, versioning and delivery of the complete Work Order. JARVIS owns downstream execution/coordination; no GRONK assignment or receipt monitoring by Kit. The V2 MD is an interim text artifact, not the Master V3 canonical ZIP/PDF package.
