@@ -1,0 +1,15 @@
+# Manifest — JARVIS review WO-CO-100-G-AcesBook-V1
+
+Files in this folder at commit time (bytes, SHA-256). The manifest does not list itself.
+
+| File | Bytes | SHA-256 |
+|---|---|---|
+| CALENDAR-30-DAY.md | 3670 | 166e292fc7dba57dc61704266ca2e81064cbc8ae817ef931fd50c848e9cfda5d |
+| JARVIS-REVIEW-WO-CO-100-G-AcesBook-V1.md | 19057 | fa2e64be7fae06cc7d087c7d59aee8186432babbd0d682f3ac7af1c3ca4ff361 |
+| JARVIS-REVIEW-WO-CO-100-G-AcesBook-V1.pdf | 574008 | 90d935e1d04735e51216fc7ada739a74cd1f21df4c8a2fa3e0d03852abdeb64c |
+| POSTS-AR.md | 10794 | 45280a65b443fde1fe0bf3f3d65fc5ca5bef351bc4589863089f9d12d8ddb2d5 |
+| POSTS-EN.md | 8967 | 7e954b6d8608cac18d0203f87866abe158444580339749c0fba20ef442ebbdb0 |
+| RECEIPT-AND-INTEGRITY-CHECK.md | 4000 | 8ea43cc6dfe260a5d45eaae306d197fc9dfab9ffa714807170daa515a024116f |
+| SAMPLE-BRIEFS.md | 6698 | 77feca5f49a0966969a462579d0088ec392d398675bd9a31539ceb6f9786d01f |
+| SOURCES.md | 8939 | b04f7c45705853c289eb4034f357c8951fa075e5e8e3f4ebb8ba74030f6228da |
+| VIDEO-SCRIPTS.md | 5115 | 8026753b4431281b599f2491db2b74856bec20b1aa87d407fd8c8e96ec72c02a |
