@@ -11,3 +11,6 @@
 | AcesBook GCC | WO-CO-100-G-AcesBook-V1 | GRONK receipt and independent review | NOT VERIFIED | No receipt verified in this check |
 | AcesBook GCC | WO-CO-100-G-AcesBook-V1 | KITT independent review and reconciliation | NOT VERIFIED / NOT STARTED | JARVIS requests independent inputs |
 | AcesBook GCC | WO-CO-100-G-AcesBook-V1 | Step-04 acceptance | FOUNDER DECISION D-1 PENDING per JARVIS | Issue #8 |
+
+| AcesBook GCC | WO-CO-100-G-AcesBook-V2 | KITT first-person V2 correction | COMMITTED; original source and ZIP still BLOCKED | commit eb97d707f4efde28a8952e5093c8d1baa31a84fd |
+| AcesBook GCC | WO-CO-100 | JARVIS complaint response / GRONK request | SENT on issue #8; new receipt pending | issue comment 6962695375 |
