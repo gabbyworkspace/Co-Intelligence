@@ -42,6 +42,22 @@ Every Work Order is sent with its Founder Review Tracker. It records every quest
 - Any choice Kit made without an explicit answer from me is marked **KIT CHOICE — NOT FOUNDER DECISION**.
 - A tracker row counts as my decision only after I confirm the tracker. I confirm with "confermo" in the JARVIS chat or in Kit's chat, and the confirmation is recorded.
 
+## §2.5 Pre-Order delivery to Jarvis (new)
+
+> Added at G's instruction in the JARVIS chat, 18 Nov 2026, 03:04 Dubai. Original Italian, G's words: "Al momento facciamo in modo tale che alla spedizione del pre-order da chiunque sia effettuato venga spedito anche a te per la comparazione."
+
+**This rule applies now, as G's direct instruction, independently of the approval of the rest of this amendment.**
+
+Whoever sends a Pre-Order to Kit sends the same complete package, at the same time, to Jarvis for comparison. That includes me, Manoj, Bayliss or anyone else I designate.
+
+- **To:** jarvis.resystem@gmail.com
+- **Subject:** `[<SENDER>>JARVIS] PRE-ORDER | <Pre-Order package name>`
+- **Content:**
+  - the complete Pre-Order package, unchanged: the ZIP, the main PDF, the prompt and the attachments folder;
+  - the file names, byte sizes and SHA-256 of each file, where the sender can compute them.
+
+Jarvis records the receipt and the hashes. When Kit's Work Order arrives, Jarvis compares it with this copy (§9).
+
 ## §9 Integrity check (replaced)
 
 When Jarvis receives a Work Order, Jarvis checks:
