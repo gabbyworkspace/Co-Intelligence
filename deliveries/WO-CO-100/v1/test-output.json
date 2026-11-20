@@ -1,0 +1,189 @@
+{
+  "project": "WO-CO-100",
+  "version": "v1",
+  "controlling_brief": "09f7655aaf5ddbb8a411116718e0ce909e24bd6e",
+  "run_at_utc": "2026-11-20T11:01:44Z",
+  "python": "3.13.18",
+  "results": [
+    {
+      "id": "AC7-1",
+      "check": "30 EN posts EN-01..EN-30",
+      "result": "PASS",
+      "detail": "found 30"
+    },
+    {
+      "id": "AC7-2",
+      "check": "30 AR posts AR-01..AR-30",
+      "result": "PASS",
+      "detail": "found 30"
+    },
+    {
+      "id": "AC7-3",
+      "check": "12 video scripts",
+      "result": "PASS",
+      "detail": "found 12 (6 EN, 6 AR)"
+    },
+    {
+      "id": "AC7-4",
+      "check": "10 cited sample briefs B1..B10",
+      "result": "PASS",
+      "detail": "found 10"
+    },
+    {
+      "id": "AC7-5",
+      "check": "30-day calendar covers D1..D30",
+      "result": "PASS",
+      "detail": "days found 30, rows 30"
+    },
+    {
+      "id": "AC7-6",
+      "check": "all 60 posts scheduled exactly once (incl. EN-21, EN-24)",
+      "result": "PASS",
+      "detail": "missing []; duplicated []"
+    },
+    {
+      "id": "AC7-7",
+      "check": "90-day roadmap has Phase 0 + D1–D30, D31–D60, D61–D90",
+      "result": "PASS",
+      "detail": "phase headings checked"
+    },
+    {
+      "id": "AC7-8",
+      "check": "three budget scenarios (ultra-lean, balanced, premium), no zero-spend column",
+      "result": "PASS",
+      "detail": "column headers checked"
+    },
+    {
+      "id": "AC2-1",
+      "check": "every cost cell tagged [ESTIMATE] or [QUOTED]",
+      "result": "PASS",
+      "detail": "42 cost cells; untagged 0: []"
+    },
+    {
+      "id": "AC2-2",
+      "check": "no [QUOTED] claimed (no vendor contact authorized)",
+      "result": "PASS",
+      "detail": "0 quoted cells"
+    },
+    {
+      "id": "SRC-1",
+      "check": "every cited [Sxx] is defined in SOURCES.md",
+      "result": "PASS",
+      "detail": "cited 33, defined 38, undefined []"
+    },
+    {
+      "id": "SRC-2",
+      "check": "items without any source citation (listed for review)",
+      "result": "INFO",
+      "detail": "9: ['EN-01', 'EN-26', 'EN-30', 'AR-01', 'AR-18', 'AR-20', 'AR-21', 'AR-30', 'V-AR-01']"
+    },
+    {
+      "id": "AC5-1",
+      "check": "no CTA/odds/tips/bonus/registration/inducement wording in 82 item bodies",
+      "result": "PASS",
+      "detail": "5 pattern hits, 5 in negated 'we don't publish…' context; non-negated: []"
+    },
+    {
+      "id": "AC5-2",
+      "check": "no links in item bodies other than listed sources (no operator/registration links)",
+      "result": "PASS",
+      "detail": "0 URLs in items; not in SOURCES: []"
+    },
+    {
+      "id": "AC3-1",
+      "check": "D-2 required items tagged [LEGAL-CHECK] (EN-11, AR-02, AR-10, AR-11, V-EN-06, V-AR-03, B10)",
+      "result": "PASS",
+      "detail": "checked"
+    },
+    {
+      "id": "AC3-2",
+      "check": "items with legal/regulatory vocabulary but no [LEGAL-CHECK] (heuristic; each needs a human look: primary-law citation or non-legal use)",
+      "result": "INFO",
+      "detail": "44 items with legal vocabulary; 15 untagged: ['EN-01', 'EN-05', 'EN-17', 'EN-21', 'EN-29', 'AR-01', 'AR-17', 'AR-28', 'V-EN-03', 'V-AR-01', 'B1', 'B2', 'B3', 'B5', 'B6']"
+    },
+    {
+      "id": "AC6-1",
+      "check": "EN/AR story overlap <30% in every calendar week (G-13: no exception)",
+      "result": "PASS",
+      "detail": "weekly overlap % {'W1': 27.3, 'W2': 16.7, 'W3': 0.0, 'W4': 16.7, 'W5': 0.0}"
+    },
+    {
+      "id": "AC6-2",
+      "check": "calendar story keys match topic-tags.json for all 60 posts",
+      "result": "PASS",
+      "detail": "60 tags; mismatches []"
+    },
+    {
+      "id": "AC6-3",
+      "check": "every story key used is defined in TAXONOMY.md",
+      "result": "PASS",
+      "detail": "undefined keys []"
+    },
+    {
+      "id": "AC8-1",
+      "check": "numeric Day 30/60/90 target for every KPI row in all three scenarios",
+      "result": "PASS",
+      "detail": "12 KPI rows × 3 scenarios; rows failing []"
+    },
+    {
+      "id": "GOV-1",
+      "check": "operations design is DESIGN ONLY, G-12 gate, G-06/G-02 left open",
+      "result": "PASS",
+      "detail": "markers checked"
+    },
+    {
+      "id": "GOV-2",
+      "check": "seven red lines present in the compliance checklist",
+      "result": "PASS",
+      "detail": "keywords for 7 red lines"
+    },
+    {
+      "id": "GOV-3",
+      "check": "every file names controlling brief V3 09f7655 and 'Pre-Order not compared'",
+      "result": "PASS",
+      "detail": "files missing header: []"
+    },
+    {
+      "id": "AR-1",
+      "check": "Arabic posts are written in Arabic (Arabic letters ≥ 70% of letters)",
+      "result": "PASS",
+      "detail": "Arabic 4306, Latin 297, ratio 0.94"
+    },
+    {
+      "id": "EXT-1",
+      "check": "source URLs reachable / archived (D-10)",
+      "result": "NOT RUN",
+      "detail": "not run in v1; archive plan in OPERATIONS-DESIGN §8"
+    },
+    {
+      "id": "EXT-2",
+      "check": "platform analytics capabilities (MB-06)",
+      "result": "BLOCKED",
+      "detail": "ASSUMPTION until checked against official platform docs; no accounts (G-12)"
+    },
+    {
+      "id": "EXT-3",
+      "check": "Pre-Order point-by-point (I-1)",
+      "result": "BLOCKED",
+      "detail": "original not in repository"
+    },
+    {
+      "id": "EXT-4",
+      "check": "legal review of [LEGAL-CHECK] items",
+      "result": "BLOCKED",
+      "detail": "legal opinion authorized (G-03) but not obtained"
+    },
+    {
+      "id": "EXT-5",
+      "check": "native Arabic editor review",
+      "result": "BLOCKED",
+      "detail": "editor not appointed (G-05)"
+    }
+  ],
+  "summary": {
+    "PASS": 22,
+    "INFO": 2,
+    "NOT RUN": 1,
+    "BLOCKED": 4
+  }
+}
