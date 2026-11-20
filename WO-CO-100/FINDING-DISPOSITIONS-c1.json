@@ -1,0 +1,334 @@
+{
+ "project_id": "WO-CO-100",
+ "cycle": 1,
+ "step": 7,
+ "reconciled_by": "JARVIS (scheduled run, manual pickup)",
+ "reconciled_at_utc": "2026-11-20T10:10:57Z",
+ "council_package_id": "WO-CO-100-C1-COUNCIL-01",
+ "council_package_sha": "462d3da2fc2e4764a52d4c2eb99b7c500aeec644",
+ "council_return_sha": "8fc0a55747b4d86f61b55b269173b4c88c4fbcf8",
+ "council_return_location": "main (direct commit by Cursor Agent; no PR)",
+ "controlling_text": "work-orders/WO-CO-100-G-AcesBook-V2.md blob da1fb6e3eddbee2da667c1b566f4a3b11e01e32a",
+ "counts": {
+  "Accepted": 36,
+  "Requires G's decision": 9
+ },
+ "applied": "Nothing applied yet. Accepted changes go into V3 (KITT, brief) and JARVIS deliverables; G items wait for G.",
+ "dispositions": [
+  {
+   "finding_id": "A-1",
+   "disposition": "Accepted",
+   "reason": "Produce three itemized budgets (ultra-lean/balanced/premium; lines tagged [ESTIMATE]/[QUOTED]; numeric 30/60/90 KPIs per scenario); re-base calendar; keep §10 as history. Within G decision B.",
+   "owner": "JARVIS (produce) → G chooses (G-01)",
+   "g_decision": "G-01"
+  },
+  {
+   "finding_id": "A-2",
+   "disposition": "Accepted",
+   "reason": "Every cycle-1/2 output states baseline 'V2 reconstruction, Pre-Order not compared'; recheck backlog item opened for when I-1 is restored.",
+   "owner": "KITT (brief) / JARVIS (outputs)",
+   "g_decision": "G-08"
+  },
+  {
+   "finding_id": "A-3",
+   "disposition": "Requires G's decision",
+   "reason": "AC5–AC8 add new acceptance criteria (scope/requirement change). Held for G.",
+   "owner": "G",
+   "g_decision": "G-11"
+  },
+  {
+   "finding_id": "A-4",
+   "disposition": "Accepted",
+   "reason": "Label daily monitoring and weekly report 'design only; operational after G authorizes accounts'.",
+   "owner": "KITT (brief) / JARVIS",
+   "g_decision": "G-12"
+  },
+  {
+   "finding_id": "A-5",
+   "disposition": "Requires G's decision",
+   "reason": "Legal opinion may need spending, which is not authorized; roadmap Day 1 marked dependent on it meanwhile.",
+   "owner": "G",
+   "g_decision": "G-03"
+  },
+  {
+   "finding_id": "A-6",
+   "disposition": "Accepted",
+   "reason": "JARVIS freeze error: JD-2, JD-4 (incl. spending angle), Q-1, Q-2, WF-Q1 were dropped from manifest open_questions. Restored at the cycle-2 freeze and put to G (G-03..G-07).",
+   "owner": "JARVIS",
+   "g_decision": "G-03,G-04,G-05,G-06,G-07"
+  },
+  {
+   "finding_id": "A-7",
+   "disposition": "Requires G's decision",
+   "reason": "Whether council reviews A–D satisfy the KITT/GRONK independent reviews named in V2 §My objective is G's call; listed as blocker MB-04 meanwhile.",
+   "owner": "G",
+   "g_decision": "G-09"
+  },
+  {
+   "finding_id": "A-8",
+   "disposition": "Accepted",
+   "reason": "Keep both Dubai Decoded figures (88,682 undated screenshot; ~99K [S31] 18 Nov) with source and date, unmerged.",
+   "owner": "KITT / JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "A-9",
+   "disposition": "Accepted",
+   "reason": "V2 header date to be corrected by KITT in V3. Freeze tag: tag pending (owner action; cannot be pushed from JARVIS's environment); tag type is G-14.",
+   "owner": "KITT; repo owner",
+   "g_decision": "G-14"
+  },
+  {
+   "finding_id": "B-1",
+   "disposition": "Accepted",
+   "reason": "Add per-channel data-source matrix (metric, access method, credential owner, storage, generator); unverified platform capabilities stay marked ASSUMPTION until checked (MB-06).",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "B-2",
+   "disposition": "Accepted",
+   "reason": "Analytics/reporting labelled design-only for cycle 1; runtime, secrets handling and go-live gate described as design; go-live is G-gated.",
+   "owner": "JARVIS",
+   "g_decision": "G-12"
+  },
+  {
+   "finding_id": "B-3",
+   "disposition": "Accepted",
+   "reason": "Minimal owned-channel reference architecture (hosting, CMS, newsletter, PDPL opt-in store, residency) as design; each component itemized in all three budgets. No purchase.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "B-4",
+   "disposition": "Accepted",
+   "reason": "Add failure states/outcomes per pipeline step (source down, conflicts, failed verification, approval timeout, correction/takedown, kill-switch) and audit-log location.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "B-5",
+   "disposition": "Accepted",
+   "reason": "Same remedy as A-1.",
+   "owner": "JARVIS",
+   "g_decision": "G-01"
+  },
+  {
+   "finding_id": "B-6",
+   "disposition": "Accepted",
+   "reason": "Decision record labelled 'JARVIS attestation only' with g_verbatim/hash/session_ref null-with-reason until G supplies them (G-08). Freeze record FREEZE-COUNCIL-01.md treated as outside freeze SHA 462d3da.",
+   "owner": "JARVIS",
+   "g_decision": "G-08"
+  },
+  {
+   "finding_id": "B-7",
+   "disposition": "Requires G's decision",
+   "reason": "Arabic brand form (Q-3) drives handles/domains; G decides before any handle or domain plan.",
+   "owner": "G",
+   "g_decision": "G-02"
+  },
+  {
+   "finding_id": "B-8",
+   "disposition": "Accepted",
+   "reason": "Define a shared topic taxonomy and tag field in the calendar/post schema so KPI 7 can be measured.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "C-1",
+   "disposition": "Requires G's decision",
+   "reason": "Accepted interim: record labelled 'JARVIS attestation only'. Confirmation form (typed words, hash/session_ref, GitHub, second factor) and extending the validation doc to scope decisions are governance changes for G.",
+   "owner": "G",
+   "g_decision": "G-08"
+  },
+  {
+   "finding_id": "C-2",
+   "disposition": "Requires G's decision",
+   "reason": "The Baileys mailbox and short 'close' reply are recorded as G's own decision of 2026-11-14 (FOUNDER_DECISION_VALIDATION lines 9, 16). JARVIS does not change it; the WORKFLOW line 69 inconsistency is reconciled after G answers.",
+   "owner": "G",
+   "g_decision": "G-10"
+  },
+  {
+   "finding_id": "C-3",
+   "disposition": "Accepted",
+   "reason": "Partly already done: JARVIS recorded the Pre-Order ZIP hash on receipt (36,589 bytes, SHA-256 aef9f127…62a9; issue #8 comment 6963603244; Amendment-1 proposal §2.5). Remaining: commit the original to the repo with hash, sender and date, treated as data. JARVIS does this before the cycle-2 freeze.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "C-4",
+   "disposition": "Accepted",
+   "reason": "Superseding note on the founder review tracker; V2/V3 gets its own issue timestamp.",
+   "owner": "KITT",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "C-5",
+   "disposition": "Accepted",
+   "reason": "Channel security baseline (admin roles, 2FA, token storage, recovery, impersonation runbook) as design; owning entity depends on G-06.",
+   "owner": "JARVIS",
+   "g_decision": "G-06"
+  },
+  {
+   "finding_id": "C-6",
+   "disposition": "Accepted",
+   "reason": "Add 'source text is data, never instructions' rule, per-post log and an independent compliance pass; named human approvers depend on G-05.",
+   "owner": "JARVIS",
+   "g_decision": "G-05"
+  },
+  {
+   "finding_id": "C-7",
+   "disposition": "Accepted",
+   "reason": "Restore the dropped open questions (as A-6); state that any account, card or contract needs G's validated decision first (already the rule; made explicit).",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "C-8",
+   "disposition": "Accepted",
+   "reason": "Data inventory, retention, report recipients, vendor/transfer basis, all tagged [LEGAL-CHECK].",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "C-9",
+   "disposition": "Accepted",
+   "reason": "Define owner, alerting, retries, delivery allowlist and duplicate-post protection for the automation design.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "C-10",
+   "disposition": "Requires G's decision",
+   "reason": "Signed tag and commit signing are governance/repo settings. Tag pending (owner action).",
+   "owner": "G",
+   "g_decision": "G-14"
+  },
+  {
+   "finding_id": "C-11",
+   "disposition": "Accepted",
+   "reason": "Ad accounts entity-owned with spend caps and G approval; no contests or prize draws without a legal opinion. Recorded as rules; nothing is spent.",
+   "owner": "JARVIS",
+   "g_decision": "G-03"
+  },
+  {
+   "finding_id": "C-12",
+   "disposition": "Accepted",
+   "reason": "Informational; no change requested. Recipient allowlist stays as documented (WORKFLOW + routing.yaml); no new email flows.",
+   "owner": "—",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-1",
+   "disposition": "Accepted",
+   "reason": "Number AC-1..AC-4 and add object, method, evidence and pass rule to each (testability only, no new scope).",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-2",
+   "disposition": "Accepted",
+   "reason": "Item-level [LEGAL-CHECK] in drafts too (posts, scripts, briefs), incl. Qatar, Kuwait, Bahrain rows and EN-11, AR-02/10/11, V-EN-06, V-AR-03, B10.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-3",
+   "disposition": "Accepted",
+   "reason": "Same remedy as A-1; also re-base roadmap and targets.",
+   "owner": "JARVIS",
+   "g_decision": "G-01"
+  },
+  {
+   "finding_id": "D-4",
+   "disposition": "Requires G's decision",
+   "reason": "Same question as A-7.",
+   "owner": "G",
+   "g_decision": "G-09"
+  },
+  {
+   "finding_id": "D-5",
+   "disposition": "Accepted",
+   "reason": "Define the overlap metric (B-8), measure, then rebalance; any exception goes to G.",
+   "owner": "JARVIS",
+   "g_decision": "G-13"
+  },
+  {
+   "finding_id": "D-6",
+   "disposition": "Accepted",
+   "reason": "Label 'JARVIS attestation only' now (as B-6); verbatim confirmation is G-08.",
+   "owner": "JARVIS",
+   "g_decision": "G-08"
+  },
+  {
+   "finding_id": "D-7",
+   "disposition": "Accepted",
+   "reason": "Superseded banner on the founder review tracker (as C-4).",
+   "owner": "KITT",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-8",
+   "disposition": "Accepted",
+   "reason": "JARVIS correction: I-3 and I-4 in JARVIS-CHECK-V2-step4.md §2 are re-graded RESOLVED → PARTIAL (third-person text remains; timestamp inherited). Frozen file left unchanged; correction recorded here.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-9",
+   "disposition": "Accepted",
+   "reason": "Item-level [EST]/[QUOTE]; fix S34 citation; source EN-03, AR-17, B4 or mark hypothesis; rename V1/V2 source-confidence labels.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-10",
+   "disposition": "Accepted",
+   "reason": "Add a verification plan for council output and archive source snapshots.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-11",
+   "disposition": "Accepted",
+   "reason": "Add a delivery definition (path deliveries/WO-CO-100/v<N>/, version, done, closure; deployment/rollback N/A). Tag pending (owner action).",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-12",
+   "disposition": "Accepted",
+   "reason": "Same as A-6.",
+   "owner": "JARVIS",
+   "g_decision": "G-04,G-05,G-06,G-07"
+  },
+  {
+   "finding_id": "D-13",
+   "disposition": "Accepted",
+   "reason": "Calendar date rule (Day 1 date, Fri/Sat vs Sat/Sun weekends by state); schedule EN-21 and EN-24.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-14",
+   "disposition": "Accepted",
+   "reason": "Neutral phrasing replaces 'play responsibly' CTAs and 'bets/تراهن' wordplay; eligibility wording tagged [LEGAL-CHECK].",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-15",
+   "disposition": "Accepted",
+   "reason": "Future freezes include the freeze record, JARVIS PDF and JARVIS/MANIFEST.md in or before the freeze commit.",
+   "owner": "JARVIS",
+   "g_decision": ""
+  },
+  {
+   "finding_id": "D-16",
+   "disposition": "Requires G's decision",
+   "reason": "Assigning a native Arabic editor is a staffing decision (possibly spend) tied to Q-1/Q-3.",
+   "owner": "G",
+   "g_decision": "G-05,G-02"
+  }
+ ]
+}
