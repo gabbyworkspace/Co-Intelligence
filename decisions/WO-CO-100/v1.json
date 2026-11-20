@@ -32,5 +32,6 @@
     "preconditions": true
   },
   "preconditions_detail": "Development v1 complete within V3 09f7655; verification run (and clean rerun 12:11Z) PARTIAL 22 PASS/0 FAIL/2 INFO/1 NOT RUN/4 BLOCKED; KITT final qualified step-10 review 7723159 with no changes requested; result PARTIAL accepted by G with the stated limitations",
-  "kitt_record": "PENDING — KITT to record in decisions/WO-CO-100/v1.KITT_RECORD.md (issue #8)"
+  "kitt_record": "RECORDED AFTER CLOSURE — decisions/WO-CO-100/v1.KITT_RECORD.md at 7fc9f41d7572f0cc83f5786b5712bdd107e82e8d (2026-11-20T12:29:34Z); matches v1 / e398fe1acd3688c7bff69a6cead760c5b78a2a6e; source marked JARVIS-attested (channel A), not independently authenticated by KITT",
+  "process_exception": "Closure (12:17:05Z) and final report (Gmail 1a1f8e3e1b223f7c) came before the KITT record, contrary to WORKFLOW.md Step 12 precondition 4; disclosed in WO-CO-100/CLOSURE-v1.md. Nothing backdated, nothing resent. This file's blob at the time of KITT's citation was 333f68f2e8434947feeefa65143188c08ad15fe2; only kitt_record and process_exception changed."
 }
