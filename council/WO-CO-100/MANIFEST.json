@@ -1,0 +1,158 @@
+{
+  "project_id": "WO-CO-100",
+  "title": "AcesBook GCC",
+  "cycle": 1,
+  "package": "council",
+  "package_id": "WO-CO-100-C1-COUNCIL-01",
+  "frozen_by": "JARVIS (live JARVIS chat at G's request; coint/ automation not deployed)",
+  "frozen_at_utc": "2026-11-20T09:42:25Z",
+  "content_commit": "3b776f46f2131d2d7c0bf8c6f2afbc470a7cad58",
+  "freeze_commit_note": "The commit that adds this manifest is the freeze commit; it is named in council/WO-CO-100/FREEZE-COUNCIL-01.md and on issue #8. Tag pending (owner action).",
+  "includes": [
+    {
+      "path": "work-orders/WO-CO-100-G-AcesBook-V2.md",
+      "blob": "da1fb6e3eddbee2da667c1b566f4a3b11e01e32a",
+      "role": "CONTROLLING Work Order text (KITT reconstruction in G's first person; includes G decisions A-C, D-1)"
+    },
+    {
+      "path": "work-orders/WO-CO-100-G-AcesBook-V2-PROMPT.md",
+      "blob": "2a000ee845a6758c8639aa00726dd90d43b87f8c",
+      "role": "recipient prompt for V2"
+    },
+    {
+      "path": "decisions/WO-CO-100/G-decisions-A-B-C-D1.json",
+      "blob": "6db80178df71bebd8f2fbc274349fc5b597ce119",
+      "role": "G decisions A, B, C, D-1 (JARVIS chat, 2026-11-20)"
+    },
+    {
+      "path": "decisions/WO-CO-100/G-decisions-A-B-C-D1.KITT_RECORD.md",
+      "blob": "5074cfe60c4a4aa2354e38313fcff750835c53b6",
+      "role": "KITT record of those decisions"
+    },
+    {
+      "path": "council/WO-CO-100/JARVIS-CHECK-V2-step4.md",
+      "blob": "24f35e411536eae614ca81b0c3c296911ed485e1",
+      "role": "JARVIS step-04 check of V2 (accepted under D-1; open items)"
+    },
+    {
+      "path": "work-orders/WO-CO-100-G-AcesBook-FOUNDER-REVIEW-TRACKER.md",
+      "blob": "5c762837b0a58d7dc6e87eba9263212b60200773",
+      "role": "founder review tracker (history of decisions and conflicts A/B/C)"
+    },
+    {
+      "path": "work-orders/WO-CO-100-G-AcesBook-V1.md",
+      "blob": "282cd164d566dfc3b169737ebe097abd09423253",
+      "role": "V1 Work Order (history; superseded by V2)"
+    },
+    {
+      "path": "work-orders/WO-CO-100-G-AcesBook-V1-FOUNDER-REVIEW.md",
+      "blob": "f278acd629d92b3af3eab1e950d0ecefcddf0799",
+      "role": "V1 founder review record (KITT summary; not verbatim)"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/JARVIS-REVIEW-WO-CO-100-G-AcesBook-V1.md",
+      "blob": "11a26452279fa9be989f576e3d2a0c7eb46c70a6",
+      "role": "JARVIS round-1 independent review (history; §10 superseded by decision B)"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/RECEIPT-AND-INTEGRITY-CHECK.md",
+      "blob": "7a7efe512888674f6ac0c354c30b8dd871c11f3b",
+      "role": "JARVIS receipt and integrity check I-1..I-6"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/SOURCES.md",
+      "blob": "40d58c352e3aeb4e647a52504a04d133b383e0a8",
+      "role": "JARVIS round-1 sources"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/POSTS-EN.md",
+      "blob": "9f145243f35553824e4c11e54b006616980c0142",
+      "role": "JARVIS round-1 draft posts, English (30)"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/POSTS-AR.md",
+      "blob": "9bc615f06f6de8b199de890de6c114503f0ecc4f",
+      "role": "JARVIS round-1 draft posts, Arabic (30)"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/VIDEO-SCRIPTS.md",
+      "blob": "3020c63991ef5c527be6a166e23ad49bcd8eaf8e",
+      "role": "JARVIS round-1 video scripts (12)"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/SAMPLE-BRIEFS.md",
+      "blob": "3e804fd69880c8b2abc328135ca3ba8e1dad5a74",
+      "role": "JARVIS round-1 cited sample briefs (10)"
+    },
+    {
+      "path": "reviews/WO-CO-100-G-AcesBook-V1/JARVIS/CALENDAR-30-DAY.md",
+      "blob": "de77d1637390cecc427f8dd7f8b134abb06cf3b3",
+      "role": "JARVIS round-1 30-day calendar"
+    }
+  ],
+  "governing_docs": [
+    {
+      "path": "WORKFLOW.md",
+      "blob": "addac25fabcfd681e396b74152b0189c4849d0b6",
+      "role": "workflow"
+    },
+    {
+      "path": "masters/WO-CO-MASTER-V3/WO-CO-MASTER-V3.md",
+      "blob": "257c5ac0e9858dcdbc2fba332e6e4bee363289cd",
+      "role": "Work Order Master V3 (governing)"
+    },
+    {
+      "path": "docs/FOUNDER_DECISION_VALIDATION.md",
+      "blob": "cccb7ab3ca36bae1bc90d1792c177aa9dab51c31",
+      "role": "founder decision validation"
+    }
+  ],
+  "approved_requirements": [
+    "Brand: AcesBook GCC (G decision A)",
+    "Two editorially independent streams, English and Arabic; not automatic translations",
+    "Coverage: regulation, legal developments, resorts, gaming news, games, products, venues, lifestyle; no gambling promotion or inducement",
+    "Independent assessment of Telegram, WhatsApp, Discord, website and other channels; editorial, technical, moderation, privacy, legal, automation, analytics",
+    "Daily monitoring of views, followers, engagement, growth; weekly automated report",
+    "Gradual launch: 60 initial posts (30 EN, 30 AR), 12 video scripts, 10 cited sample briefs, 30-day editorial calendar, 90-day roadmap",
+    "Three budget scenarios: ultra-lean, balanced, premium, each with itemized costs, realistic assumptions, numeric KPIs and 30/60/90-day targets (G decisions B and C)",
+    "No guaranteed growth, no invented evidence; hypotheses about Dubai Decoded stay hypotheses",
+    "Not authorized: account creation, publishing, spending, contracting"
+  ],
+  "acceptance_criteria": [
+    "Every approved requirement above is addressed or explicitly marked as not addressed with a reason",
+    "Each cost is marked estimate vs quoted; each claim cites a source or is labelled hypothesis",
+    "Legal statements per GCC state are marked [LEGAL-CHECK] unless sourced to primary law",
+    "Disagreements between reviewers are preserved in the conflict log, not merged away"
+  ],
+  "open_questions": [
+    "I-1/I-2: original PRE-CO-G-AcesBook-V2 and canonical ZIP/PDF not in repository (KITT); council cannot compare against the Pre-Order",
+    "Dubai Decoded screenshots and MP4 missing: media analysis BLOCKED -> round two; public channel https://t.me/dubai may be inspected",
+    "Q-3: how the brand appears in the Arabic stream (Latin script, transliteration or Arabic sub-brand) - G",
+    "D-3: which of the three budget scenarios runs the first 90 days - G",
+    "Legal opinion on GCC [LEGAL-CHECK] items before any launch - G"
+  ],
+  "council": {
+    "coordinator": "GRONK",
+    "reviewers": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "independent": true,
+    "return_location": "council/WO-CO-100/cycle-1/",
+    "return": [
+      "RETURN-TO-JARVIS.md",
+      "review-A.md",
+      "review-B.md",
+      "review-C.md",
+      "review-D.md",
+      "findings-index.md",
+      "proposed-final-draft.md",
+      "conflict-decision-log.md",
+      "g-decisions.md",
+      "missing-info-blockers.md"
+    ],
+    "each_review_must_cite": "the freeze commit SHA and package_id WO-CO-100-C1-COUNCIL-01"
+  }
+}
