@@ -15,3 +15,5 @@
 | AcesBook GCC | WO-CO-100-G-AcesBook-V2 | Downstream execution / coordination | JARVIS RESPONSIBILITY; Kit does not assign GRONK tasks or monitor GRONK receipt | Master V3 §1, §2, §16; founder correction |
 
 | AcesBook GCC | WO-CO-100-G-AcesBook-V2 | Founder decisions A/B/C/D-1 | JARVIS RECORDED; KITT RECONCILING: AcesBook GCC; three budgets; numeric targets now; proceed parallel | decisions/WO-CO-100/G-decisions-A-B-C-D1.json; commit 5597a2d |
+
+| AcesBook GCC | WO-CO-100-G-AcesBook-V3 | Council c1 and founder decisions | KITT V3 BRIEF COMMITTED; JARVIS C2 DELIVERABLES NEXT; canonical ZIP/PDF and source integrity still OPEN | GRONK return 8fc0a55; reconciliation 1879b43; G decisions fc5753b; KITT record c0825cc; V3 09f7655 |
