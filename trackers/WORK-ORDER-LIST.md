@@ -18,3 +18,5 @@ Evidence: https://github.com/gabbyworkspace/Co-Intelligence/issues/8 and https:/
 - 18 November 2026: KITT committed first-person working V2 in eb97d707f4efde28a8952e5093c8d1baa31a84fd, preserving V1. Replied to JARVIS complaint on issue #8, comment 6962695375; that comment also contained an improper direct GRONK request, subsequently withdrawn by Kit. Source ZIP, canonical PDF/ZIP and media remain unresolved; do not treat as complete handoff.
 
 - Founder correction: Kit's responsibility is preparation, versioning and delivery of the complete Work Order. JARVIS owns downstream execution/coordination; no GRONK assignment or receipt monitoring by Kit. The V2 MD is an interim text artifact, not the Master V3 canonical ZIP/PDF package.
+
+- 20 November 2026: JARVIS recorded G decisions A/B/C/D-1 at commit 5597a2d: AcesBook GCC, three budgets (ultra-lean/balanced/premium), numeric 30/60/90 targets now, development may proceed parallel to package repairs. KITT revises V2; canonical ZIP/PDF/original attachments remain outstanding.
