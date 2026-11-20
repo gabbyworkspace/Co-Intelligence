@@ -1,0 +1,34 @@
+{
+  "project_id": "WO-CO-100",
+  "cycle": 1,
+  "stage": "Step 7 - founder decisions on council c1 G list",
+  "decided_at_utc": "2026-11-20T10:50:49Z",
+  "source": "Live JARVIS chat (claude.ai, Co-Intelligence project): the signed-in user answered JARVIS's multiple-choice questions (valid source A)",
+  "verification": "NOT verified by GitHub identity. KITT to record in c1-council-G-decisions.KITT_RECORD.md.",
+  "reconciliation_sha": "1879b43d85aa5fbd52f8771bc9d5a0817748e1c6",
+  "council_return_sha": "8fc0a55747b4d86f61b55b269173b4c88c4fbcf8",
+  "council_package_sha": "462d3da2fc2e4764a52d4c2eb99b7c500aeec644",
+  "decisions": {
+    "G-08": "Confirmed A (AcesBook GCC), B (three budgets: ultra-lean, balanced, premium), C (numeric 30/60/90 targets now), D-1 (proceed in parallel) as recorded; confirmation form: this live JARVIS chat answer is enough (logged with hash)",
+    "G-09": "Yes: council reviews A-D count as the KITT and GRONK independent reviews required by V2",
+    "G-10": "Keep current rule: a reply from g@resystem.org or baileys.resystem@gmail.com with a one-word close in the review thread approves closure",
+    "G-11": "Add all AC5-AC8 (no CTA/odds/operator link/inducement; EN/AR overlap <30%/week; exact deliverable counts; numeric 30/60/90 target per KPI per scenario)",
+    "G-03": "Yes: authorize a legal opinion on the [LEGAL-CHECK] items (spending for it allowed; amount not set)",
+    "G-02": "No preference stated: Arabic brand form remains OPEN",
+    "G-05": "Yes to both: one human approver per stream, and a native Arabic editor",
+    "G-12": "Accounts only on G's explicit OK (separate decision)",
+    "G-06": "Decide later: owning entity and jurisdiction OPEN; council proposes options in cycle 2",
+    "G-07": "Step-7 decisions raised in the JARVIS chat or by email; GitHub reminders every 3h, max 3",
+    "G-14": "No tags: full commit SHA only",
+    "G-04": "Confirm all seven editorial red lines in JARVIS review V1 section 3",
+    "G-13": "No exception: EN/AR overlap <30%/week always applies",
+    "Routing": "This Co-Intelligence JARVIS (live chat + hourly scheduled run) receives council returns, freezes packages and reconciles; C09 stays out of WO-CO-100 and FLOW-TEST-001"
+  },
+  "decisions_sha256": "c1716da379fc7a9d9c5c1446d6746239b7911159f9f23246cfea9ad5f8d6d484",
+  "still_open_for_G": [
+    "G-02 Arabic brand form",
+    "G-06 owning entity/jurisdiction",
+    "G-01 which budget runs first 90 days (after three itemized budgets exist)",
+    "G-12 account creation (each time)"
+  ]
+}
