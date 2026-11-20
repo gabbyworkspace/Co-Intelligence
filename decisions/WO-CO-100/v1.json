@@ -1,0 +1,36 @@
+{
+  "project_id": "WO-CO-100",
+  "title": "AcesBook GCC",
+  "version": "1",
+  "cycle": "1",
+  "delivery_tag": null,
+  "delivery_tag_note": "G-14: no tags; the full SHA identifies the version",
+  "delivery_sha": "e398fe1acd3688c7bff69a6cead760c5b78a2a6e",
+  "findings_sha": "5e994e93fa344b73c383213b927b54955ee93ee6",
+  "decision": "APPROVE_AND_CLOSE",
+  "g_verbatim": "JARVIS asked: WO-CO-100 v1 (commit e398fe1acd36) decision? G selected: APPROVE AND CLOSE | JARVIS asked: G-01 which budget runs the first 90 days? G selected: Premium",
+  "g_verbatim_sha256": "6299d3f6f0a815726ca9e8329da667e877f76b17a5d6eb166ee87312addcbc72",
+  "requested_changes": [],
+  "also_decided": {
+    "G-01": "Premium budget scenario for the first 90 days (USD 23,455/month + USD 33,500 one-off, JARVIS estimates). Selecting the scenario is not an authorization to spend, contract or create accounts; each such action still needs G's separate decision (G-12)."
+  },
+  "source": "Live JARVIS chat (claude.ai, Co-Intelligence Project), channel (A): G's explicit selection 'APPROVE AND CLOSE' on JARVIS's question naming WO-CO-100 v1 and commit e398fe1acd36",
+  "evidence_level": "JARVIS attestation (multiple-choice selection in the live chat; not verified by GitHub identity)",
+  "review_email": {
+    "to": "baileys.resystem@gmail.com",
+    "gmail_id": "1a1f8dfd732b0a42",
+    "note": "no email reply received at decision time"
+  },
+  "session_ref": "https://claude.ai/code/session_01XCx3Pkcg5QohyuG65Demoa",
+  "decided_at_utc": "2026-11-20T12:17:05Z",
+  "validated_by": "JARVIS",
+  "checks": {
+    "source": true,
+    "explicit": true,
+    "exact_version": true,
+    "current": true,
+    "preconditions": true
+  },
+  "preconditions_detail": "Development v1 complete within V3 09f7655; verification run (and clean rerun 12:11Z) PARTIAL 22 PASS/0 FAIL/2 INFO/1 NOT RUN/4 BLOCKED; KITT final qualified step-10 review 7723159 with no changes requested; result PARTIAL accepted by G with the stated limitations",
+  "kitt_record": "PENDING — KITT to record in decisions/WO-CO-100/v1.KITT_RECORD.md (issue #8)"
+}
