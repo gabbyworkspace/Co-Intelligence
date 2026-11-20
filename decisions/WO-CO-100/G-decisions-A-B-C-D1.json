@@ -1,0 +1,16 @@
+{
+  "project_id": "WO-CO-100",
+  "title": "AcesBook — founder decisions A, B, C, D-1",
+  "decided_at_utc": "2026-11-20T09:38:00Z",
+  "source": "JARVIS chat (claude.ai, Co-Intelligence project): the signed-in user answered JARVIS's multiple-choice question",
+  "verification": "Live JARVIS chat (valid source A per docs/FOUNDER_DECISION_VALIDATION.md). NOT verified by GitHub identity. KITT must record these in decisions/WO-CO-100/G-decisions-A-B-C-D1.KITT_RECORD.md.",
+  "requested_in": "https://github.com/gabbyworkspace/Co-Intelligence/issues/8#issuecomment-6971719508",
+  "tracker_sha_at_request": "0c3be2df28ae497413e6bcdbe28a28e79943da98",
+  "decisions": {
+    "A_brand": "AcesBook GCC (select now; do not evaluate three alternatives)",
+    "B_budgets": "Three scenarios: ultra-lean, balanced, premium (no zero-spend scenario)",
+    "C_targets": "Numeric 30/60/90-day targets now (not baseline-first)",
+    "D1_step04": "Proceed now: accept step 04 and start development in parallel; canonical package and integrity fixes I-1..I-4 follow"
+  },
+  "note": "A and C depart from the Pre-Order and match KITT's version; B follows the Pre-Order and departs from KITT's version. KITT's open items (canonical ZIP/PDF/prompt package, media, I-1..I-4) remain open."
+}
