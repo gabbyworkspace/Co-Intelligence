@@ -14,7 +14,7 @@
 | Council | Cycle 1: package `WO-CO-100-C1-COUNCIL-01` (freeze `462d3da`), return `8fc0a55`, reconciliation `1879b43`: 45 findings — 36 accepted, 9 G decisions (all answered except G-02, G-06), 0 rejected |
 | Founder review package | `deliveries/WO-CO-100/v1/WO-CO-100-v1-Review-Package.pdf`, emailed to baileys.resystem@gmail.com (Gmail 1a1f8dfd732b0a42) |
 | KITT GitHub record of the decision | PENDING (requested on issue #8) |
-| Final report | sent after this record — see `ledger/emails.jsonl` |
+| Final report | Sent 2026-11-20T12:17:43Z To g@resystem.org, Gmail id `1a1f8e3e1b223f7c` (accepted by Gmail API; inbox delivery not confirmed) — `ledger/emails.jsonl` |
 
 **Closure scope.** Closing v1 accepts the planning and draft deliverables only. It does **not** authorize publishing, spending, vendor contact, contracts or account creation (G-12); each needs G's separate decision.
 
