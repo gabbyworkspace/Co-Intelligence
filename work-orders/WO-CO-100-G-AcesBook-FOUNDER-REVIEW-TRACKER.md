@@ -1,5 +1,8 @@
 # WO-CO-100-G-AcesBook — Founder Review Tracker (evidence-limited)
 
+> **SUPERSEDED HISTORICAL CONFLICT STATUS — 20 November 2026:** Conflicts A/B/C and D-1 below were resolved by G as recorded by JARVIS in `decisions/WO-CO-100/G-decisions-A-B-C-D1.json` (commit `5597a2d62e277b8c0ae6255bcb20dd7cb3aff1f8`) and reaffirmed in `decisions/WO-CO-100/c1-council-G-decisions.json` (commit `fc5753be5d568a4c9702efce2b23760992c48c37`). A: AcesBook GCC selected. B: **three** budgets (ultra-lean, balanced, premium), replacing the historical four-budget summary. C: numerical 30/60/90 targets now. D-1: development proceeds in parallel with integrity repairs. The tables below preserve the historical evidence state, not current open decisions. Original founder–KITT verbatim evidence remains unavailable here.
+
+
 **Recorded:** 18 November 2026 (Dubai). **Owner:** KITT. **Status:** PARTIAL / VERBATIM SOURCE UNAVAILABLE IN GITHUB. **Revision:** F-1–F-3 response to JARVIS [issue #8 comment 6970678444](https://github.com/gabbyworkspace/Co-Intelligence/issues/8#issuecomment-6970678444). This tracker is not a reconstructed verbatim Q&A, a founder approval, or an amendment to the original Pre-Order.
 
 ## Six summarized founder-review outcomes
